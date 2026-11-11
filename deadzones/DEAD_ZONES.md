@@ -116,3 +116,40 @@ review windows, and candidate frames identify where to investigate.
 
 Raw data and generated results stay in the repository's existing ignored `data/`
 directory. Existing possession code is unchanged.
+
+## Which remaining frames are certain?
+
+Run the separate evidence audit:
+
+```sh
+python3 audit_dead_zones.py --public-gt evaluation/gt/BAR-ATH_possession_gt_public.csv
+```
+
+`data/dead_zones/audit/report.md` lists all 15 non-goal gap interiors and the
+evidence each needs. They contain 5,305 frames (212.20 seconds); **none can be
+verified dead from the available data**. Six overlap another restart clip.
+Even the middle of a gap needs proof of the stop and uninterrupted dead play.
+Guard trimming cannot supply that proof.
+
+The audit also covers all 53 ordinary restart windows and gap margins. Within
+this larger scope, public labels confirm 667 dead frames and 485 live frames;
+46,652 frames remain unresolved. These are unique frame counts, with overlapping
+windows counted once. The confirmed labels occur in restart windows, not in
+the 15 gap interiors. This demonstrates why an entire restart clip cannot be
+labeled dead. Labels from the public reference are **audit-only** and never
+feed into `infer`, `dead_mask`, or possession overlays.
+
+The audit exports:
+
+- `frames.csv`: each reviewed video frame, certainty status, evidence IDs, and
+  what still needs confirmation. Frames outside the review scope are omitted.
+- `segments.csv`: identical adjacent evidence rows compressed to half-open ranges.
+- `gaps.csv`: one row per non-goal gap, including other overlapping restart IDs.
+- `reference_dead_intervals.csv`: exact dead ranges confirmed by the reference.
+
+Without `--public-gt`, the audit assigns no certain-dead or certain-live frames.
+Overlapping tactical play tags indicate ambiguity, not verified live play.
+To promote further frames to certain dead, obtain an independently verified stop
+and restart with no intervening live play: the guaranteed core is from the latest
+possible stop to the earliest possible restart (exclusive). The XML does not
+provide those validated stop bounds.

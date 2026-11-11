@@ -1,0 +1,18 @@
+{
+  "ordinary_restart_count": 53,
+  "gap_count": 15,
+  "gap_frames": 5305,
+  "gap_certain_dead_frames": 0,
+  "gap_needs_evidence_frames": 5305,
+  "gaps_overlapping_other_restart_clips": 6,
+  "unique_review_frames": 47804,
+  "status_counts": {
+    "reference_dead": 667,
+    "reference_live": 485,
+    "needs_evidence": 46652
+  },
+  "xml_certain_dead_frames": 0,
+  "reference_source": "/Users/danieleitan/Desktop/more-than-a-hack-2027/evaluation/gt/BAR-ATH_possession_gt_public.csv",
+  "fps": 25,
+  "n_frames": 199319
+}

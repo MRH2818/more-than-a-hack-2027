@@ -1,0 +1,60 @@
+event_id,half,type,start_s,end_s,paired,reason
+1,1st half,kick off (start),443.88,448.88,False,Start-of-half window; no preceding stop supplied
+464,1st half,free kick,701.32,736.32,False,Restart window only; no defensible preceding gap found
+454,1st half,goal kick,732.8,767.8,False,Restart window only; no defensible preceding gap found
+442,1st half,throw-in,781.4,816.4,True,See linked pair; restart instant remains uncertain
+448,1st half,throw-in,863.04,898.04,True,See linked pair; restart instant remains uncertain
+427,1st half,throw-in,1016.4,1051.4,False,Restart window only; no defensible preceding gap found
+437,1st half,throw-in,1111.76,1146.76,True,See linked pair; restart instant remains uncertain
+421,1st half,corner kick,1184.32,1219.32,False,Restart window only; no defensible preceding gap found
+422,1st half,corner kick,1386.04,1421.04,False,Restart window only; no defensible preceding gap found
+416,1st half,corner kick,1477.56,1512.56,False,Restart window only; no defensible preceding gap found
+458,1st half,goal kick,1491.04,1526.04,False,Restart window only; no defensible preceding gap found
+438,1st half,throw-in,1562.4,1597.4,False,Restart window only; no defensible preceding gap found
+415,1st half,corner kick,1704.56,1739.56,False,Restart window only; no defensible preceding gap found
+434,1st half,throw-in,1771.04,1806.04,False,Restart window only; no defensible preceding gap found
+462,1st half,free kick,1848.32,1883.32,False,Restart window only; no defensible preceding gap found
+2,1st half,kick off (after goal),1985.24,1990.24,True,See linked pair; restart instant remains uncertain
+453,1st half,goal kick,2040.0,2075.0,True,See linked pair; restart instant remains uncertain
+463,1st half,free kick,2107.12,2142.12,False,Restart window only; no defensible preceding gap found
+423,1st half,corner kick,2294.72,2329.72,False,Restart window only; no defensible preceding gap found
+3,1st half,kick off (after goal),2480.48,2485.48,True,See linked pair; restart instant remains uncertain
+432,1st half,throw-in,2622.32,2657.32,False,Restart window only; no defensible preceding gap found
+439,1st half,throw-in,2739.04,2774.04,False,Restart window only; no defensible preceding gap found
+465,1st half,free kick,2944.56,2979.56,False,Restart window only; no defensible preceding gap found
+4,1st half,kick off (after goal),3018.28,3023.28,True,See linked pair; restart instant remains uncertain
+418,1st half,corner kick,3236.52,3271.52,False,Restart window only; no defensible preceding gap found
+452,1st half,goal kick,3393.88,3428.88,True,See linked pair; restart instant remains uncertain
+429,1st half,throw-in,3422.92,3457.92,True,See linked pair; restart instant remains uncertain
+5,2nd half,kick off (start),4546.4,4551.4,False,Start-of-half window; no preceding stop supplied
+426,2nd half,throw-in,4594.08,4629.08,False,Restart window only; no defensible preceding gap found
+443,2nd half,throw-in,4824.96,4859.96,True,See linked pair; restart instant remains uncertain
+440,2nd half,throw-in,4848.84,4883.84,False,Restart window only; no defensible preceding gap found
+431,2nd half,throw-in,4944.16,4979.16,True,See linked pair; restart instant remains uncertain
+450,2nd half,throw-in,5005.92,5040.92,False,Restart window only; no defensible preceding gap found
+433,2nd half,throw-in,5090.08,5125.08,True,See linked pair; restart instant remains uncertain
+414,2nd half,corner kick,5212.84,5247.84,False,Restart window only; no defensible preceding gap found
+417,2nd half,corner kick,5457.04,5492.04,False,Restart window only; no defensible preceding gap found
+420,2nd half,corner kick,5522.52,5557.52,False,Restart window only; no defensible preceding gap found
+457,2nd half,goal kick,5598.56,5633.56,False,Restart window only; no defensible preceding gap found
+461,2nd half,goal kick,5767.56,5802.56,False,Restart window only; no defensible preceding gap found
+425,2nd half,corner kick,5872.2,5907.2,False,Restart window only; no defensible preceding gap found
+455,2nd half,goal kick,5945.32,5980.32,False,Restart window only; no defensible preceding gap found
+424,2nd half,corner kick,6013.56,6048.56,False,Restart window only; no defensible preceding gap found
+419,2nd half,corner kick,6226.8,6261.8,False,Restart window only; no defensible preceding gap found
+466,2nd half,free kick,6232.12,6267.12,False,Restart window only; no defensible preceding gap found
+441,2nd half,throw-in,6274.0,6309.0,False,Restart window only; no defensible preceding gap found
+6,2nd half,kick off (after goal),6520.0,6525.0,True,See linked pair; restart instant remains uncertain
+460,2nd half,goal kick,6554.08,6589.08,False,Restart window only; no defensible preceding gap found
+430,2nd half,throw-in,6594.24,6629.24,False,Restart window only; no defensible preceding gap found
+436,2nd half,throw-in,6634.36,6669.36,True,See linked pair; restart instant remains uncertain
+428,2nd half,throw-in,6655.64,6690.64,False,Restart window only; no defensible preceding gap found
+444,2nd half,throw-in,6788.96,6823.96,True,See linked pair; restart instant remains uncertain
+435,2nd half,throw-in,7172.0,7207.0,False,Restart window only; no defensible preceding gap found
+456,2nd half,goal kick,7296.52,7331.52,True,See linked pair; restart instant remains uncertain
+446,2nd half,throw-in,7314.48,7349.48,True,See linked pair; restart instant remains uncertain
+447,2nd half,throw-in,7370.6,7405.6,False,Restart window only; no defensible preceding gap found
+459,2nd half,goal kick,7384.12,7419.12,False,Restart window only; no defensible preceding gap found
+451,2nd half,throw-in,7417.64,7452.64,True,See linked pair; restart instant remains uncertain
+445,2nd half,throw-in,7499.76,7534.76,False,Restart window only; no defensible preceding gap found
+449,2nd half,throw-in,7537.28,7572.28,True,See linked pair; restart instant remains uncertain
