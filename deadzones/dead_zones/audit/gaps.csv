@@ -1,0 +1,16 @@
+pair_id,restart_type,start_frame,end_frame_exclusive,duration_s,certain_dead_frames,known_live_frames,needs_evidence_frames,overlapping_restart_ids,required_evidence
+pair-005,throw-in,19158,19510,14.08,0,0,352,"[""454""]",Confirm actual stop and uninterrupted dead play; locate restart contact; resolve another restart clip
+pair-006,throw-in,21236,21551,12.6,0,0,315,[],Confirm actual stop and uninterrupted dead play; locate restart contact
+pair-007,throw-in,27463,27769,12.24,0,0,306,[],Confirm actual stop and uninterrupted dead play; locate restart contact
+pair-008,goal kick,50872,50975,4.12,0,0,103,[],Confirm actual stop and uninterrupted dead play; locate restart contact
+pair-009,goal kick,84710,84822,4.48,0,0,112,[],Confirm actual stop and uninterrupted dead play; locate restart contact
+pair-010,throw-in,85230,85548,12.72,0,0,318,"[""452""]",Confirm actual stop and uninterrupted dead play; locate restart contact; resolve another restart clip
+pair-011,throw-in,120471,120599,5.12,0,0,128,[],Confirm actual stop and uninterrupted dead play; locate restart contact
+pair-012,throw-in,123553,123579,1.04,0,0,26,[],Confirm actual stop and uninterrupted dead play; locate restart contact
+pair-013,throw-in,126972,127227,10.2,0,0,255,[],Confirm actual stop and uninterrupted dead play; locate restart contact
+pair-014,throw-in,165546,165834,11.52,0,0,288,"[""430""]",Confirm actual stop and uninterrupted dead play; locate restart contact; resolve another restart clip
+pair-015,throw-in,168770,169699,37.16,0,0,929,[],Confirm actual stop and uninterrupted dead play; locate restart contact
+pair-016,goal kick,180976,182388,56.48,0,0,1412,[],Confirm actual stop and uninterrupted dead play; locate restart contact
+pair-017,throw-in,182769,182837,2.72,0,0,68,"[""456""]",Confirm actual stop and uninterrupted dead play; locate restart contact; resolve another restart clip
+pair-018,throw-in,184944,185416,18.88,0,0,472,"[""447"", ""459""]",Confirm actual stop and uninterrupted dead play; locate restart contact; resolve another restart clip
+pair-019,throw-in,188186,188407,8.84,0,0,221,"[""445""]",Confirm actual stop and uninterrupted dead play; locate restart contact; resolve another restart clip

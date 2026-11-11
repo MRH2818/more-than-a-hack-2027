@@ -1,0 +1,1189 @@
+{
+  "config": {
+    "fps": 25,
+    "n_frames": 199319,
+    "guard_s": 1.0,
+    "max_goal_span_s": 360.0,
+    "max_restart_gap_s": 60.0
+  },
+  "event_count": 638,
+  "code_counts": {
+    "BALL IN FINAL THIRD": 93,
+    "LONG BALL": 29,
+    "SET PIECES": 59,
+    "PROGRESSION": 66,
+    "DEFENDING IN MIDDLE THIRD": 66,
+    "PLAYERS IN THE BOX": 97,
+    "BALL IN THE BOX": 72,
+    "ATTACKING TRANSITION": 24,
+    "DEFENSIVE TRANSITION": 24,
+    "CREATING CHANCES": 30,
+    "DEFENDING IN DEFENSIVE THIRD": 30,
+    "BUILD UP": 22,
+    "DEFENDING IN ATTACKING THIRD": 22,
+    "GOALS": 4
+  },
+  "restart_counts": {
+    "kick off (start)": 2,
+    "free kick": 5,
+    "goal kick": 10,
+    "throw-in": 26,
+    "corner kick": 12,
+    "kick off (after goal)": 4
+  },
+  "pairs": [
+    {
+      "id": "pair-001",
+      "rule": "goal_to_kickoff",
+      "half": "1st half",
+      "stop_event_id": "269",
+      "restart_event_id": "2",
+      "restart_type": "kick off (after goal)",
+      "team": "Barcelona",
+      "start_frame": 47245,
+      "end_frame_exclusive": 49606,
+      "start_s": 1889.8,
+      "end_s": 1984.24,
+      "duration_s": 94.44,
+      "pair_confidence": "high",
+      "boundary_confidence": "medium",
+      "frame_verified": false,
+      "evidence_ids": [
+        "161",
+        "2",
+        "244",
+        "245",
+        "269",
+        "462",
+        "470",
+        "612",
+        "62"
+      ],
+      "reason": "Goal and post-goal kickoff agree; use only the gap after all overlapping play/set-piece clips, trimmed by the guard. The actual goal frame and restart frame remain unknown.",
+      "stop_window_s": [
+        1837.88,
+        1986.24
+      ],
+      "restart_window_s": [
+        1985.24,
+        1990.24
+      ]
+    },
+    {
+      "id": "pair-002",
+      "rule": "goal_to_kickoff",
+      "half": "1st half",
+      "stop_event_id": "270",
+      "restart_event_id": "3",
+      "restart_type": "kick off (after goal)",
+      "team": "Atletic Club",
+      "start_frame": 58268,
+      "end_frame_exclusive": 61987,
+      "start_s": 2330.72,
+      "end_s": 2479.48,
+      "duration_s": 148.76,
+      "pair_confidence": "high",
+      "boundary_confidence": "medium",
+      "frame_verified": false,
+      "evidence_ids": [
+        "116",
+        "208",
+        "270",
+        "3",
+        "329",
+        "35",
+        "423",
+        "553"
+      ],
+      "reason": "Goal and post-goal kickoff agree; use only the gap after all overlapping play/set-piece clips, trimmed by the guard. The actual goal frame and restart frame remain unknown.",
+      "stop_window_s": [
+        2291.32,
+        2481.48
+      ],
+      "restart_window_s": [
+        2480.48,
+        2485.48
+      ]
+    },
+    {
+      "id": "pair-003",
+      "rule": "goal_to_kickoff",
+      "half": "1st half",
+      "stop_event_id": "271",
+      "restart_event_id": "4",
+      "restart_type": "kick off (after goal)",
+      "team": "Atletic Club",
+      "start_frame": 74514,
+      "end_frame_exclusive": 75432,
+      "start_s": 2980.56,
+      "end_s": 3017.28,
+      "duration_s": 36.72,
+      "pair_confidence": "high",
+      "boundary_confidence": "medium",
+      "frame_verified": false,
+      "evidence_ids": [
+        "120",
+        "212",
+        "271",
+        "4",
+        "41",
+        "465"
+      ],
+      "reason": "Goal and post-goal kickoff agree; use only the gap after all overlapping play/set-piece clips, trimmed by the guard. The actual goal frame and restart frame remain unknown.",
+      "stop_window_s": [
+        2948.4,
+        3019.28
+      ],
+      "restart_window_s": [
+        3018.28,
+        3023.28
+      ]
+    },
+    {
+      "id": "pair-004",
+      "rule": "goal_to_kickoff",
+      "half": "2nd half",
+      "stop_event_id": "272",
+      "restart_event_id": "6",
+      "restart_type": "kick off (after goal)",
+      "team": "Barcelona",
+      "start_frame": 158390,
+      "end_frame_exclusive": 162975,
+      "start_s": 6335.6,
+      "end_s": 6519.0,
+      "duration_s": 183.4,
+      "pair_confidence": "high",
+      "boundary_confidence": "medium",
+      "frame_verified": false,
+      "evidence_ids": [
+        "144",
+        "145",
+        "23",
+        "235",
+        "236",
+        "272",
+        "318",
+        "441",
+        "493",
+        "542",
+        "6",
+        "635"
+      ],
+      "reason": "Goal and post-goal kickoff agree; use only the gap after all overlapping play/set-piece clips, trimmed by the guard. The actual goal frame and restart frame remain unknown.",
+      "stop_window_s": [
+        6270.28,
+        6521.0
+      ],
+      "restart_window_s": [
+        6520.0,
+        6525.0
+      ]
+    },
+    {
+      "id": "pair-005",
+      "rule": "phase_to_restart",
+      "half": "1st half",
+      "stop_event_id": "403",
+      "restart_event_id": "442",
+      "restart_type": "throw-in",
+      "team": "Barcelona",
+      "start_frame": 19158,
+      "end_frame_exclusive": 19510,
+      "start_s": 766.32,
+      "end_s": 780.4,
+      "duration_s": 14.08,
+      "pair_confidence": "low",
+      "boundary_confidence": "low",
+      "frame_verified": false,
+      "evidence_ids": [
+        "403",
+        "442"
+      ],
+      "reason": "Gap before a restart, but the phase end is not a stop event. Untagged live play may occupy this whole gap. Review only.",
+      "stop_window_s": [
+        752.28,
+        765.32
+      ],
+      "restart_window_s": [
+        781.4,
+        816.4
+      ]
+    },
+    {
+      "id": "pair-006",
+      "rule": "phase_to_restart",
+      "half": "1st half",
+      "stop_event_id": "321",
+      "restart_event_id": "448",
+      "restart_type": "throw-in",
+      "team": "Barcelona",
+      "start_frame": 21236,
+      "end_frame_exclusive": 21551,
+      "start_s": 849.44,
+      "end_s": 862.04,
+      "duration_s": 12.6,
+      "pair_confidence": "low",
+      "boundary_confidence": "low",
+      "frame_verified": false,
+      "evidence_ids": [
+        "321",
+        "448"
+      ],
+      "reason": "Gap before a restart, but the phase end is not a stop event. Untagged live play may occupy this whole gap. Review only.",
+      "stop_window_s": [
+        816.68,
+        848.44
+      ],
+      "restart_window_s": [
+        863.04,
+        898.04
+      ]
+    },
+    {
+      "id": "pair-007",
+      "rule": "phase_to_restart",
+      "half": "1st half",
+      "stop_event_id": "389",
+      "restart_event_id": "437",
+      "restart_type": "throw-in",
+      "team": "Atletic Club",
+      "start_frame": 27463,
+      "end_frame_exclusive": 27769,
+      "start_s": 1098.52,
+      "end_s": 1110.76,
+      "duration_s": 12.24,
+      "pair_confidence": "low",
+      "boundary_confidence": "low",
+      "frame_verified": false,
+      "evidence_ids": [
+        "389",
+        "437"
+      ],
+      "reason": "Gap before a restart, but the phase end is not a stop event. Untagged live play may occupy this whole gap. Review only.",
+      "stop_window_s": [
+        1089.44,
+        1097.52
+      ],
+      "restart_window_s": [
+        1111.76,
+        1146.76
+      ]
+    },
+    {
+      "id": "pair-008",
+      "rule": "phase_to_restart",
+      "half": "1st half",
+      "stop_event_id": "34",
+      "restart_event_id": "453",
+      "restart_type": "goal kick",
+      "team": "Atletic Club",
+      "start_frame": 50872,
+      "end_frame_exclusive": 50975,
+      "start_s": 2034.88,
+      "end_s": 2039.0,
+      "duration_s": 4.12,
+      "pair_confidence": "low",
+      "boundary_confidence": "low",
+      "frame_verified": false,
+      "evidence_ids": [
+        "34",
+        "453"
+      ],
+      "reason": "Gap before a restart, but the phase end is not a stop event. Untagged live play may occupy this whole gap. Review only.",
+      "stop_window_s": [
+        1996.48,
+        2033.88
+      ],
+      "restart_window_s": [
+        2040.0,
+        2075.0
+      ]
+    },
+    {
+      "id": "pair-009",
+      "rule": "phase_to_restart",
+      "half": "1st half",
+      "stop_event_id": "74",
+      "restart_event_id": "452",
+      "restart_type": "goal kick",
+      "team": "Barcelona",
+      "start_frame": 84710,
+      "end_frame_exclusive": 84822,
+      "start_s": 3388.4,
+      "end_s": 3392.88,
+      "duration_s": 4.48,
+      "pair_confidence": "low",
+      "boundary_confidence": "low",
+      "frame_verified": false,
+      "evidence_ids": [
+        "452",
+        "74"
+      ],
+      "reason": "Gap before a restart, but the phase end is not a stop event. Untagged live play may occupy this whole gap. Review only.",
+      "stop_window_s": [
+        3330.84,
+        3387.4
+      ],
+      "restart_window_s": [
+        3393.88,
+        3428.88
+      ]
+    },
+    {
+      "id": "pair-010",
+      "rule": "phase_to_restart",
+      "half": "1st half",
+      "stop_event_id": "386",
+      "restart_event_id": "429",
+      "restart_type": "throw-in",
+      "team": "Atletic Club",
+      "start_frame": 85230,
+      "end_frame_exclusive": 85548,
+      "start_s": 3409.2,
+      "end_s": 3421.92,
+      "duration_s": 12.72,
+      "pair_confidence": "low",
+      "boundary_confidence": "low",
+      "frame_verified": false,
+      "evidence_ids": [
+        "386",
+        "429"
+      ],
+      "reason": "Gap before a restart, but the phase end is not a stop event. Untagged live play may occupy this whole gap. Review only.",
+      "stop_window_s": [
+        3399.84,
+        3408.2
+      ],
+      "restart_window_s": [
+        3422.92,
+        3457.92
+      ]
+    },
+    {
+      "id": "pair-011",
+      "rule": "phase_to_restart",
+      "half": "2nd half",
+      "stop_event_id": "398",
+      "restart_event_id": "443",
+      "restart_type": "throw-in",
+      "team": "Barcelona",
+      "start_frame": 120471,
+      "end_frame_exclusive": 120599,
+      "start_s": 4818.84,
+      "end_s": 4823.96,
+      "duration_s": 5.12,
+      "pair_confidence": "low",
+      "boundary_confidence": "low",
+      "frame_verified": false,
+      "evidence_ids": [
+        "398",
+        "443"
+      ],
+      "reason": "Gap before a restart, but the phase end is not a stop event. Untagged live play may occupy this whole gap. Review only.",
+      "stop_window_s": [
+        4806.08,
+        4817.84
+      ],
+      "restart_window_s": [
+        4824.96,
+        4859.96
+      ]
+    },
+    {
+      "id": "pair-012",
+      "rule": "phase_to_restart",
+      "half": "2nd half",
+      "stop_event_id": "87",
+      "restart_event_id": "431",
+      "restart_type": "throw-in",
+      "team": "Atletic Club",
+      "start_frame": 123553,
+      "end_frame_exclusive": 123579,
+      "start_s": 4942.12,
+      "end_s": 4943.16,
+      "duration_s": 1.04,
+      "pair_confidence": "low",
+      "boundary_confidence": "low",
+      "frame_verified": false,
+      "evidence_ids": [
+        "431",
+        "87"
+      ],
+      "reason": "Gap before a restart, but the phase end is not a stop event. Untagged live play may occupy this whole gap. Review only.",
+      "stop_window_s": [
+        4922.16,
+        4941.12
+      ],
+      "restart_window_s": [
+        4944.16,
+        4979.16
+      ]
+    },
+    {
+      "id": "pair-013",
+      "rule": "phase_to_restart",
+      "half": "2nd half",
+      "stop_event_id": "325",
+      "restart_event_id": "433",
+      "restart_type": "throw-in",
+      "team": "Barcelona",
+      "start_frame": 126972,
+      "end_frame_exclusive": 127227,
+      "start_s": 5078.88,
+      "end_s": 5089.08,
+      "duration_s": 10.2,
+      "pair_confidence": "low",
+      "boundary_confidence": "low",
+      "frame_verified": false,
+      "evidence_ids": [
+        "325",
+        "433"
+      ],
+      "reason": "Gap before a restart, but the phase end is not a stop event. Untagged live play may occupy this whole gap. Review only.",
+      "stop_window_s": [
+        5055.36,
+        5077.88
+      ],
+      "restart_window_s": [
+        5090.08,
+        5125.08
+      ]
+    },
+    {
+      "id": "pair-014",
+      "rule": "phase_to_restart",
+      "half": "2nd half",
+      "stop_event_id": "147",
+      "restart_event_id": "436",
+      "restart_type": "throw-in",
+      "team": "Barcelona",
+      "start_frame": 165546,
+      "end_frame_exclusive": 165834,
+      "start_s": 6621.84,
+      "end_s": 6633.36,
+      "duration_s": 11.52,
+      "pair_confidence": "low",
+      "boundary_confidence": "low",
+      "frame_verified": false,
+      "evidence_ids": [
+        "147",
+        "436"
+      ],
+      "reason": "Gap before a restart, but the phase end is not a stop event. Untagged live play may occupy this whole gap. Review only.",
+      "stop_window_s": [
+        6596.92,
+        6620.84
+      ],
+      "restart_window_s": [
+        6634.36,
+        6669.36
+      ]
+    },
+    {
+      "id": "pair-015",
+      "rule": "phase_to_restart",
+      "half": "2nd half",
+      "stop_event_id": "94",
+      "restart_event_id": "444",
+      "restart_type": "throw-in",
+      "team": "Atletic Club",
+      "start_frame": 168770,
+      "end_frame_exclusive": 169699,
+      "start_s": 6750.8,
+      "end_s": 6787.96,
+      "duration_s": 37.16,
+      "pair_confidence": "low",
+      "boundary_confidence": "low",
+      "frame_verified": false,
+      "evidence_ids": [
+        "444",
+        "94"
+      ],
+      "reason": "Gap before a restart, but the phase end is not a stop event. Untagged live play may occupy this whole gap. Review only.",
+      "stop_window_s": [
+        6713.56,
+        6749.8
+      ],
+      "restart_window_s": [
+        6788.96,
+        6823.96
+      ]
+    },
+    {
+      "id": "pair-016",
+      "rule": "phase_to_restart",
+      "half": "2nd half",
+      "stop_event_id": "196",
+      "restart_event_id": "456",
+      "restart_type": "goal kick",
+      "team": "Atletic Club",
+      "start_frame": 180976,
+      "end_frame_exclusive": 182388,
+      "start_s": 7239.04,
+      "end_s": 7295.52,
+      "duration_s": 56.48,
+      "pair_confidence": "low",
+      "boundary_confidence": "low",
+      "frame_verified": false,
+      "evidence_ids": [
+        "196",
+        "456"
+      ],
+      "reason": "Gap before a restart, but the phase end is not a stop event. Untagged live play may occupy this whole gap. Review only.",
+      "stop_window_s": [
+        7204.64,
+        7238.04
+      ],
+      "restart_window_s": [
+        7296.52,
+        7331.52
+      ]
+    },
+    {
+      "id": "pair-017",
+      "rule": "phase_to_restart",
+      "half": "2nd half",
+      "stop_event_id": "402",
+      "restart_event_id": "446",
+      "restart_type": "throw-in",
+      "team": "Atletic Club",
+      "start_frame": 182769,
+      "end_frame_exclusive": 182837,
+      "start_s": 7310.76,
+      "end_s": 7313.48,
+      "duration_s": 2.72,
+      "pair_confidence": "low",
+      "boundary_confidence": "low",
+      "frame_verified": false,
+      "evidence_ids": [
+        "402",
+        "446"
+      ],
+      "reason": "Gap before a restart, but the phase end is not a stop event. Untagged live play may occupy this whole gap. Review only.",
+      "stop_window_s": [
+        7299.12,
+        7309.76
+      ],
+      "restart_window_s": [
+        7314.48,
+        7349.48
+      ]
+    },
+    {
+      "id": "pair-018",
+      "rule": "phase_to_restart",
+      "half": "2nd half",
+      "stop_event_id": "100",
+      "restart_event_id": "451",
+      "restart_type": "throw-in",
+      "team": "Atletic Club",
+      "start_frame": 184944,
+      "end_frame_exclusive": 185416,
+      "start_s": 7397.76,
+      "end_s": 7416.64,
+      "duration_s": 18.88,
+      "pair_confidence": "low",
+      "boundary_confidence": "low",
+      "frame_verified": false,
+      "evidence_ids": [
+        "100",
+        "451"
+      ],
+      "reason": "Gap before a restart, but the phase end is not a stop event. Untagged live play may occupy this whole gap. Review only.",
+      "stop_window_s": [
+        7369.52,
+        7396.76
+      ],
+      "restart_window_s": [
+        7417.64,
+        7452.64
+      ]
+    },
+    {
+      "id": "pair-019",
+      "rule": "phase_to_restart",
+      "half": "2nd half",
+      "stop_event_id": "397",
+      "restart_event_id": "449",
+      "restart_type": "throw-in",
+      "team": "Barcelona",
+      "start_frame": 188186,
+      "end_frame_exclusive": 188407,
+      "start_s": 7527.44,
+      "end_s": 7536.28,
+      "duration_s": 8.84,
+      "pair_confidence": "low",
+      "boundary_confidence": "low",
+      "frame_verified": false,
+      "evidence_ids": [
+        "397",
+        "449"
+      ],
+      "reason": "Gap before a restart, but the phase end is not a stop event. Untagged live play may occupy this whole gap. Review only.",
+      "stop_window_s": [
+        7510.08,
+        7526.44
+      ],
+      "restart_window_s": [
+        7537.28,
+        7572.28
+      ]
+    }
+  ],
+  "restart_review": [
+    {
+      "event_id": "1",
+      "half": "1st half",
+      "type": "kick off (start)",
+      "start_s": 443.88,
+      "end_s": 448.88,
+      "paired": false,
+      "reason": "Start-of-half window; no preceding stop supplied"
+    },
+    {
+      "event_id": "464",
+      "half": "1st half",
+      "type": "free kick",
+      "start_s": 701.32,
+      "end_s": 736.32,
+      "paired": false,
+      "reason": "Restart window only; no defensible preceding gap found"
+    },
+    {
+      "event_id": "454",
+      "half": "1st half",
+      "type": "goal kick",
+      "start_s": 732.8,
+      "end_s": 767.8,
+      "paired": false,
+      "reason": "Restart window only; no defensible preceding gap found"
+    },
+    {
+      "event_id": "442",
+      "half": "1st half",
+      "type": "throw-in",
+      "start_s": 781.4,
+      "end_s": 816.4,
+      "paired": true,
+      "reason": "See linked pair; restart instant remains uncertain"
+    },
+    {
+      "event_id": "448",
+      "half": "1st half",
+      "type": "throw-in",
+      "start_s": 863.04,
+      "end_s": 898.04,
+      "paired": true,
+      "reason": "See linked pair; restart instant remains uncertain"
+    },
+    {
+      "event_id": "427",
+      "half": "1st half",
+      "type": "throw-in",
+      "start_s": 1016.4,
+      "end_s": 1051.4,
+      "paired": false,
+      "reason": "Restart window only; no defensible preceding gap found"
+    },
+    {
+      "event_id": "437",
+      "half": "1st half",
+      "type": "throw-in",
+      "start_s": 1111.76,
+      "end_s": 1146.76,
+      "paired": true,
+      "reason": "See linked pair; restart instant remains uncertain"
+    },
+    {
+      "event_id": "421",
+      "half": "1st half",
+      "type": "corner kick",
+      "start_s": 1184.32,
+      "end_s": 1219.32,
+      "paired": false,
+      "reason": "Restart window only; no defensible preceding gap found"
+    },
+    {
+      "event_id": "422",
+      "half": "1st half",
+      "type": "corner kick",
+      "start_s": 1386.04,
+      "end_s": 1421.04,
+      "paired": false,
+      "reason": "Restart window only; no defensible preceding gap found"
+    },
+    {
+      "event_id": "416",
+      "half": "1st half",
+      "type": "corner kick",
+      "start_s": 1477.56,
+      "end_s": 1512.56,
+      "paired": false,
+      "reason": "Restart window only; no defensible preceding gap found"
+    },
+    {
+      "event_id": "458",
+      "half": "1st half",
+      "type": "goal kick",
+      "start_s": 1491.04,
+      "end_s": 1526.04,
+      "paired": false,
+      "reason": "Restart window only; no defensible preceding gap found"
+    },
+    {
+      "event_id": "438",
+      "half": "1st half",
+      "type": "throw-in",
+      "start_s": 1562.4,
+      "end_s": 1597.4,
+      "paired": false,
+      "reason": "Restart window only; no defensible preceding gap found"
+    },
+    {
+      "event_id": "415",
+      "half": "1st half",
+      "type": "corner kick",
+      "start_s": 1704.56,
+      "end_s": 1739.56,
+      "paired": false,
+      "reason": "Restart window only; no defensible preceding gap found"
+    },
+    {
+      "event_id": "434",
+      "half": "1st half",
+      "type": "throw-in",
+      "start_s": 1771.04,
+      "end_s": 1806.04,
+      "paired": false,
+      "reason": "Restart window only; no defensible preceding gap found"
+    },
+    {
+      "event_id": "462",
+      "half": "1st half",
+      "type": "free kick",
+      "start_s": 1848.32,
+      "end_s": 1883.32,
+      "paired": false,
+      "reason": "Restart window only; no defensible preceding gap found"
+    },
+    {
+      "event_id": "2",
+      "half": "1st half",
+      "type": "kick off (after goal)",
+      "start_s": 1985.24,
+      "end_s": 1990.24,
+      "paired": true,
+      "reason": "See linked pair; restart instant remains uncertain"
+    },
+    {
+      "event_id": "453",
+      "half": "1st half",
+      "type": "goal kick",
+      "start_s": 2040.0,
+      "end_s": 2075.0,
+      "paired": true,
+      "reason": "See linked pair; restart instant remains uncertain"
+    },
+    {
+      "event_id": "463",
+      "half": "1st half",
+      "type": "free kick",
+      "start_s": 2107.12,
+      "end_s": 2142.12,
+      "paired": false,
+      "reason": "Restart window only; no defensible preceding gap found"
+    },
+    {
+      "event_id": "423",
+      "half": "1st half",
+      "type": "corner kick",
+      "start_s": 2294.72,
+      "end_s": 2329.72,
+      "paired": false,
+      "reason": "Restart window only; no defensible preceding gap found"
+    },
+    {
+      "event_id": "3",
+      "half": "1st half",
+      "type": "kick off (after goal)",
+      "start_s": 2480.48,
+      "end_s": 2485.48,
+      "paired": true,
+      "reason": "See linked pair; restart instant remains uncertain"
+    },
+    {
+      "event_id": "432",
+      "half": "1st half",
+      "type": "throw-in",
+      "start_s": 2622.32,
+      "end_s": 2657.32,
+      "paired": false,
+      "reason": "Restart window only; no defensible preceding gap found"
+    },
+    {
+      "event_id": "439",
+      "half": "1st half",
+      "type": "throw-in",
+      "start_s": 2739.04,
+      "end_s": 2774.04,
+      "paired": false,
+      "reason": "Restart window only; no defensible preceding gap found"
+    },
+    {
+      "event_id": "465",
+      "half": "1st half",
+      "type": "free kick",
+      "start_s": 2944.56,
+      "end_s": 2979.56,
+      "paired": false,
+      "reason": "Restart window only; no defensible preceding gap found"
+    },
+    {
+      "event_id": "4",
+      "half": "1st half",
+      "type": "kick off (after goal)",
+      "start_s": 3018.28,
+      "end_s": 3023.28,
+      "paired": true,
+      "reason": "See linked pair; restart instant remains uncertain"
+    },
+    {
+      "event_id": "418",
+      "half": "1st half",
+      "type": "corner kick",
+      "start_s": 3236.52,
+      "end_s": 3271.52,
+      "paired": false,
+      "reason": "Restart window only; no defensible preceding gap found"
+    },
+    {
+      "event_id": "452",
+      "half": "1st half",
+      "type": "goal kick",
+      "start_s": 3393.88,
+      "end_s": 3428.88,
+      "paired": true,
+      "reason": "See linked pair; restart instant remains uncertain"
+    },
+    {
+      "event_id": "429",
+      "half": "1st half",
+      "type": "throw-in",
+      "start_s": 3422.92,
+      "end_s": 3457.92,
+      "paired": true,
+      "reason": "See linked pair; restart instant remains uncertain"
+    },
+    {
+      "event_id": "5",
+      "half": "2nd half",
+      "type": "kick off (start)",
+      "start_s": 4546.4,
+      "end_s": 4551.4,
+      "paired": false,
+      "reason": "Start-of-half window; no preceding stop supplied"
+    },
+    {
+      "event_id": "426",
+      "half": "2nd half",
+      "type": "throw-in",
+      "start_s": 4594.08,
+      "end_s": 4629.08,
+      "paired": false,
+      "reason": "Restart window only; no defensible preceding gap found"
+    },
+    {
+      "event_id": "443",
+      "half": "2nd half",
+      "type": "throw-in",
+      "start_s": 4824.96,
+      "end_s": 4859.96,
+      "paired": true,
+      "reason": "See linked pair; restart instant remains uncertain"
+    },
+    {
+      "event_id": "440",
+      "half": "2nd half",
+      "type": "throw-in",
+      "start_s": 4848.84,
+      "end_s": 4883.84,
+      "paired": false,
+      "reason": "Restart window only; no defensible preceding gap found"
+    },
+    {
+      "event_id": "431",
+      "half": "2nd half",
+      "type": "throw-in",
+      "start_s": 4944.16,
+      "end_s": 4979.16,
+      "paired": true,
+      "reason": "See linked pair; restart instant remains uncertain"
+    },
+    {
+      "event_id": "450",
+      "half": "2nd half",
+      "type": "throw-in",
+      "start_s": 5005.92,
+      "end_s": 5040.92,
+      "paired": false,
+      "reason": "Restart window only; no defensible preceding gap found"
+    },
+    {
+      "event_id": "433",
+      "half": "2nd half",
+      "type": "throw-in",
+      "start_s": 5090.08,
+      "end_s": 5125.08,
+      "paired": true,
+      "reason": "See linked pair; restart instant remains uncertain"
+    },
+    {
+      "event_id": "414",
+      "half": "2nd half",
+      "type": "corner kick",
+      "start_s": 5212.84,
+      "end_s": 5247.84,
+      "paired": false,
+      "reason": "Restart window only; no defensible preceding gap found"
+    },
+    {
+      "event_id": "417",
+      "half": "2nd half",
+      "type": "corner kick",
+      "start_s": 5457.04,
+      "end_s": 5492.04,
+      "paired": false,
+      "reason": "Restart window only; no defensible preceding gap found"
+    },
+    {
+      "event_id": "420",
+      "half": "2nd half",
+      "type": "corner kick",
+      "start_s": 5522.52,
+      "end_s": 5557.52,
+      "paired": false,
+      "reason": "Restart window only; no defensible preceding gap found"
+    },
+    {
+      "event_id": "457",
+      "half": "2nd half",
+      "type": "goal kick",
+      "start_s": 5598.56,
+      "end_s": 5633.56,
+      "paired": false,
+      "reason": "Restart window only; no defensible preceding gap found"
+    },
+    {
+      "event_id": "461",
+      "half": "2nd half",
+      "type": "goal kick",
+      "start_s": 5767.56,
+      "end_s": 5802.56,
+      "paired": false,
+      "reason": "Restart window only; no defensible preceding gap found"
+    },
+    {
+      "event_id": "425",
+      "half": "2nd half",
+      "type": "corner kick",
+      "start_s": 5872.2,
+      "end_s": 5907.2,
+      "paired": false,
+      "reason": "Restart window only; no defensible preceding gap found"
+    },
+    {
+      "event_id": "455",
+      "half": "2nd half",
+      "type": "goal kick",
+      "start_s": 5945.32,
+      "end_s": 5980.32,
+      "paired": false,
+      "reason": "Restart window only; no defensible preceding gap found"
+    },
+    {
+      "event_id": "424",
+      "half": "2nd half",
+      "type": "corner kick",
+      "start_s": 6013.56,
+      "end_s": 6048.56,
+      "paired": false,
+      "reason": "Restart window only; no defensible preceding gap found"
+    },
+    {
+      "event_id": "419",
+      "half": "2nd half",
+      "type": "corner kick",
+      "start_s": 6226.8,
+      "end_s": 6261.8,
+      "paired": false,
+      "reason": "Restart window only; no defensible preceding gap found"
+    },
+    {
+      "event_id": "466",
+      "half": "2nd half",
+      "type": "free kick",
+      "start_s": 6232.12,
+      "end_s": 6267.12,
+      "paired": false,
+      "reason": "Restart window only; no defensible preceding gap found"
+    },
+    {
+      "event_id": "441",
+      "half": "2nd half",
+      "type": "throw-in",
+      "start_s": 6274.0,
+      "end_s": 6309.0,
+      "paired": false,
+      "reason": "Restart window only; no defensible preceding gap found"
+    },
+    {
+      "event_id": "6",
+      "half": "2nd half",
+      "type": "kick off (after goal)",
+      "start_s": 6520.0,
+      "end_s": 6525.0,
+      "paired": true,
+      "reason": "See linked pair; restart instant remains uncertain"
+    },
+    {
+      "event_id": "460",
+      "half": "2nd half",
+      "type": "goal kick",
+      "start_s": 6554.08,
+      "end_s": 6589.08,
+      "paired": false,
+      "reason": "Restart window only; no defensible preceding gap found"
+    },
+    {
+      "event_id": "430",
+      "half": "2nd half",
+      "type": "throw-in",
+      "start_s": 6594.24,
+      "end_s": 6629.24,
+      "paired": false,
+      "reason": "Restart window only; no defensible preceding gap found"
+    },
+    {
+      "event_id": "436",
+      "half": "2nd half",
+      "type": "throw-in",
+      "start_s": 6634.36,
+      "end_s": 6669.36,
+      "paired": true,
+      "reason": "See linked pair; restart instant remains uncertain"
+    },
+    {
+      "event_id": "428",
+      "half": "2nd half",
+      "type": "throw-in",
+      "start_s": 6655.64,
+      "end_s": 6690.64,
+      "paired": false,
+      "reason": "Restart window only; no defensible preceding gap found"
+    },
+    {
+      "event_id": "444",
+      "half": "2nd half",
+      "type": "throw-in",
+      "start_s": 6788.96,
+      "end_s": 6823.96,
+      "paired": true,
+      "reason": "See linked pair; restart instant remains uncertain"
+    },
+    {
+      "event_id": "435",
+      "half": "2nd half",
+      "type": "throw-in",
+      "start_s": 7172.0,
+      "end_s": 7207.0,
+      "paired": false,
+      "reason": "Restart window only; no defensible preceding gap found"
+    },
+    {
+      "event_id": "456",
+      "half": "2nd half",
+      "type": "goal kick",
+      "start_s": 7296.52,
+      "end_s": 7331.52,
+      "paired": true,
+      "reason": "See linked pair; restart instant remains uncertain"
+    },
+    {
+      "event_id": "446",
+      "half": "2nd half",
+      "type": "throw-in",
+      "start_s": 7314.48,
+      "end_s": 7349.48,
+      "paired": true,
+      "reason": "See linked pair; restart instant remains uncertain"
+    },
+    {
+      "event_id": "447",
+      "half": "2nd half",
+      "type": "throw-in",
+      "start_s": 7370.6,
+      "end_s": 7405.6,
+      "paired": false,
+      "reason": "Restart window only; no defensible preceding gap found"
+    },
+    {
+      "event_id": "459",
+      "half": "2nd half",
+      "type": "goal kick",
+      "start_s": 7384.12,
+      "end_s": 7419.12,
+      "paired": false,
+      "reason": "Restart window only; no defensible preceding gap found"
+    },
+    {
+      "event_id": "451",
+      "half": "2nd half",
+      "type": "throw-in",
+      "start_s": 7417.64,
+      "end_s": 7452.64,
+      "paired": true,
+      "reason": "See linked pair; restart instant remains uncertain"
+    },
+    {
+      "event_id": "445",
+      "half": "2nd half",
+      "type": "throw-in",
+      "start_s": 7499.76,
+      "end_s": 7534.76,
+      "paired": false,
+      "reason": "Restart window only; no defensible preceding gap found"
+    },
+    {
+      "event_id": "449",
+      "half": "2nd half",
+      "type": "throw-in",
+      "start_s": 7537.28,
+      "end_s": 7572.28,
+      "paired": true,
+      "reason": "See linked pair; restart instant remains uncertain"
+    }
+  ],
+  "issues": [],
+  "source": "/Users/danieleitan/Desktop/more-than-a-hack-2027/data/tactical/BAR-ATH_tactical_smart_tagging.xml",
+  "policy": "goals",
+  "public_evaluation": {
+    "goals": {
+      "graded_predicted_dead": 0,
+      "true_dead_frames": 0,
+      "false_dead_frames": 0,
+      "public_dead_frames": 1469,
+      "precision": null,
+      "recall": 0.0,
+      "note": "No candidate coverage; accuracy is unvalidated"
+    },
+    "exploratory": {
+      "graded_predicted_dead": 0,
+      "true_dead_frames": 0,
+      "false_dead_frames": 0,
+      "public_dead_frames": 1469,
+      "precision": null,
+      "recall": 0.0,
+      "note": "No candidate coverage; accuracy is unvalidated"
+    }
+  }
+}
