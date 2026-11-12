@@ -7,6 +7,35 @@ in your own models. The full decision log, with every number and every rejected 
 No data, caches, detections, model weights or CSVs are in this branch. Everything is regenerated
 from your own local copy of the competition data in `data/`.
 
+## Current scores (v6, 2026-11-11)
+
+spellF1 runs from 0 to 1, and 1 is perfect. It's the metric the leaderboard ranks on.
+
+| Test | v6 | Baseline | What it tells us |
+|---|---|---|---|
+| Public 5-minute window | spellF1 **0.489**, macroF1 0.783 | smooth50 0.326, smooth125 0.424 | Sanity check only: just 17 possessions, so it's noisy (bootstrap 0.33–0.64). Never tune on it. |
+| IDSSE, 7 Bundesliga matches | spellF1 **0.615**, macroF1 0.874 | smooth50 about 0.32* | Main yardstick for comparing models. Measured on v5: these matches have no video, so v6 behaves exactly like v5 here. |
+| Hidden-ball test on our match (`masktest`) | team correct on hidden frames **77.2%** (v5: 65.6%) | — | The evidence that the video ball helps. Hides real ball stretches and checks the labels there. |
+| Full match (the real leaderboard) | unknown until graded | smooth50 **0.2433** (the official floor) | Our guess is about 0.4–0.55. That's an estimate, not a measurement. |
+
+\*The IDSSE baseline was scored on the raw DFL answers, not the converted ones, so it's only a
+rough comparison.
+
+**Other facts about v6**
+- On the full match it finds 279 possessions and 140 stoppages, and labels 45.6% of graded
+  frames as dead ball.
+- The video ball fills 38% of the frames where the tracking has no ball.
+- Reproducibility was checked on 2026-11-11: the rerun gave byte-identical detections and a
+  byte-identical CSV.
+
+**Known weak spots**
+- Dead-ball recall is only about 55%.
+- Turnovers are often called a little late: 37.5% of transition tags fall within 2 s.
+- The video ball covers only 38% of the ball gaps.
+
+**To beat v6**, score your model on the IDSSE held-out matches. If it touches video or our own
+match, also check it with `masktest`.
+
 ## 1. Regenerate v6 (one command, about 2.5 h on Apple Silicon)
 
 ```bash
@@ -22,11 +51,7 @@ python evaluation/validate_submission.py evaluation/results/possession_v6.csv
 - **The weights are downloaded once**, and their sha256 is checked.
 - **The output is deterministic.** Reruns were byte-identical, for both the detections and the CSV.
 
-**v6 results**
-- Public 5-minute window: spellF1 0.489, macroF1 0.783. That window is for checking only, so
-  don't tune on it.
-- IDSSE held-out matches: spellF1 about 0.61.
-- `baseline_smooth50` (the official floor) scores 0.2433 on the full match.
+The scores are in the table above.
 
 ## 2. Video ball detection (fills the gaps in the provided ball track)
 
