@@ -221,3 +221,66 @@ any batch slower than 2 s, so a stall can no longer truncate NMS.
 - Incident: with videoball defaulting on, the synthetic test suite briefly loaded the real
   detections and homography (pass/fail output only, nothing printed or sent). tests/isolation.py
   now disables those defaults and blocks the real paths for every test.
+
+## 2026-11-12 — learned evidence (gradient-boosted trees trained on IDSSE) -> v7 candidate
+`possession/learned.py`: about 80 per-frame features (ball state and gaps, distances and
+counts near the ball per team, player speeds relative to the match median, team shape, control
+evidence averaged over past/future windows), HistGradientBoosting (200 trees), trained on
+degraded IDSSE copies (seeds 10, 11; every 4th frame) with answers in the challenge definition
+(3 s). Team-symmetric: rows shown with teams swapped too, predictions average both views.
+Emissions = LEARNED_WEIGHT x (log P(class|x) - log prior). Smart Tagging priors, set-piece cue
+and, in ATD gaps, the video ball's soft-control evidence are added on top (not learnable on IDSSE).
+Hand-made evidence otherwise replaced. Option `learned` (USE_LEARNED, default off until BAR-ATH
+checks pass). No BAR-ATH answers or data used for training.
+- Evaluation seed 1, models never see the match they score (leave-one-out on the 4 tune
+  matches; trained on all 4 for the 3 test matches):
+  hand-made v6: tune 0.627 / test 0.600 spellF1 (macroF1 0.886 / 0.857)
+  learned:      tune 0.766 / test 0.714 spellF1 (macroF1 0.934 / 0.914)
+- Settings search on the tune matches (weight, switch costs, minimum durations): flat
+  (0.766 -> 0.772; test 0.711). Defaults kept (weight 1.0, v6 decoder settings).
+- Robustness on the test matches, hand vs learned: 3x ball noise 0.537 vs 0.633; 2 s definition
+  0.587 vs 0.650; another degradation seed 0.595 vs 0.700. Learned predicts fewer possessions
+  (ratio 0.74-1.04 vs hand 0.92-1.19).
+- Training is deterministic (identical predictions from two fits). The BAR-ATH model is trained
+  on all 7 matches at run time (cache/learned_model.pkl); `external.download()` fetches the
+  pinned IDSSE revision (a715a38) and checks every file's sha256 prefix.
+- BAR-ATH acceptance criteria, set BEFORE looking (no answers involved): possessions 250-400,
+  stoppages 100-220, D share 35-50%; phase agreement >= 81.7 (v6 82.7 - 1); set piece near D
+  >= 90%; masktest hidden_team_agree not more than 3 points below v6; transitions within 2 s
+  not clearly worse (24-48 tags, so +-1 tag is noise).
+- BAR-ATH result for full `learned` (2026-11-12, with video): possessions 271, stoppages 130,
+  D 41.7 (pass); phase agreement 77.4 (fail, bar 81.7); set piece near D 87.9 (fail, bar 90);
+  masktest hidden_team_agree 67.8 vs base 77.2 (fail, -9.4); transitions within 5 s 70.8 vs 79.2,
+  median 3.92 s vs 2.70 s (worse). NOT adopted: does not transfer to BAR-ATH's tracking.
+- Partial modes added (`learneddead`, `learnedteam`, `learnedblend`), IDSSE test matches, seed 1,
+  spellF1 at noise 0.25 / 0.75: hand 0.600 / 0.537; full 0.714 / 0.633; dead-only 0.645 / 0.548;
+  team-only 0.643 / 0.571; blend (hand + learned) 0.709 / 0.634. Each goes to the BAR-ATH
+  masktest under the same pre-set criteria.
+
+## 2026-11-12 (later) — IDSSE bench made realistic; second learned round; parameter search
+Bench fixes: (1) referees were parsed as away players (TeamId "referee" -> not home -> away);
+now excluded. v6 all-7 seed 1: 0.615 -> 0.617. (2) `python -m possession.players` on BAR-ATH
+(aggregates): players tracked per team mean 10.70 (ball seen) / 9.58 (ball missing), p10 9;
+tracklets 11.5/min, median 35 s; positions and speeds as clean as IDSSE's. IDSSE copies now drop
+players for a few seconds at a time (EXT_PLAYER_*), calibrated to ~10.55 / 9.4. v6 on the new
+bench: all 7 0.609, test 0.600.
+Parameter-freezing bug fixed: DUEL_ZONE_M, TOUCH_MARGIN_M, CONTROL_LL were bound as function
+defaults at import, so searches could not change them; now read at call time (v6 output unchanged).
+Learned, retrained on the new bench (IDSSE test, noise 0.25/0.75): full 0.709/0.622, blend
+0.705/0.617, dead 0.639/0.534, team 0.649/0.568 vs v6 0.600/0.527.
+BAR-ATH masktest (base / learned / blend / dead / team): hidden team 77.2/68.6/69.9/68.9/81.0;
+phase 82.7/79.6/79.2/82.4/80.2; set piece 94.8/87.9/89.7/87.9/93.1; trans median s
+2.7/3.28/3.7/2.74/3.56 -> all fail. Learned dead-vs-alive does not transfer.
+Clue-parameter search (4 tune matches): tune 0.623 -> 0.664; held-out (seed 0) 0.571 -> 0.605;
+3x noise 0.527 -> 0.526 with macroF1 0.821 -> 0.766 (fragile). Stored as config.SEARCH_PARAMS and
+config.DEAD_PARAMS (dead-ball weights only), not applied.
+Round 2 (IDSSE test noise 0.25 / 0.75; BAR-ATH masktest):
+- learnedgap (learned team evidence only where the ATD has no ball, video kept): IDSSE
+  0.597/0.530 (v6 0.600/0.527); BAR-ATH hidden team 77.3, phase 79.7 (fail), trans 3.32 s. Rejected.
+- DEAD_PARAMS: IDSSE 0.603/0.489; BAR-ATH passes every pre-set criterion (hidden team 81.4,
+  phase 82.0, set piece 94.8, possessions 303, stoppages 154, trans median 2.68 s). NOT adopted:
+  the rule was "pass on BAR-ATH AND beat v6 on IDSSE"; it ties at calibrated noise and loses
+  0.038 at 3x noise, and its masktest gain is partly confounded (it changes the real-ball
+  reference too, as cleandead did on 2026-11-07).
+- SEARCH_PARAMS: possessions 246 (< 250), trans 3.36 s -> rejected. Combinations fail phase.
+v6 remains the best model.

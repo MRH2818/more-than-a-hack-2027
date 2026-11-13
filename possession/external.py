@@ -33,6 +33,56 @@ IDSSE_DIR = os.path.join(config.CACHE_DIR, "external", "idsse")
 LETTER_CODES = {"H": pm.H, "A": pm.A, "D": pm.D, "X": pm.X}
 
 
+# Pinned copy of the dataset: Hugging Face revision and the first 16 hex digits of each file's
+# sha256. Only match information and positions are needed (answers come from the ball frames).
+HF_REVISION = "a715a38dfbaf5f58e431727c2b78d174101a703c"
+HF_URL = "https://huggingface.co/datasets/pysport/idsse-data/resolve/{}/{}"
+FILES = {
+    "DFL_02_01_matchinformation_DFL-COM-000001_DFL-MAT-J03WMX.xml": "a884728647a564cf",
+    "DFL_02_01_matchinformation_DFL-COM-000001_DFL-MAT-J03WN1.xml": "5490286436c86e6f",
+    "DFL_02_01_matchinformation_DFL-COM-000002_DFL-MAT-J03WOH.xml": "f23b3ee13b988b1f",
+    "DFL_02_01_matchinformation_DFL-COM-000002_DFL-MAT-J03WOY.xml": "4c497fac683eee82",
+    "DFL_02_01_matchinformation_DFL-COM-000002_DFL-MAT-J03WPY.xml": "566dd5e4c86e124a",
+    "DFL_02_01_matchinformation_DFL-COM-000002_DFL-MAT-J03WQQ.xml": "e976aa0c5dba862c",
+    "DFL_02_01_matchinformation_DFL-COM-000002_DFL-MAT-J03WR9.xml": "429b584e89df3e3e",
+    "DFL_04_03_positions_raw_observed_DFL-COM-000001_DFL-MAT-J03WMX.xml": "d3dd92e509421a64",
+    "DFL_04_03_positions_raw_observed_DFL-COM-000001_DFL-MAT-J03WN1.xml": "56ef948961a18e15",
+    "DFL_04_03_positions_raw_observed_DFL-COM-000002_DFL-MAT-J03WOH.xml": "ec4dcf30200aad69",
+    "DFL_04_03_positions_raw_observed_DFL-COM-000002_DFL-MAT-J03WOY.xml": "a228ef0e676d009c",
+    "DFL_04_03_positions_raw_observed_DFL-COM-000002_DFL-MAT-J03WPY.xml": "845202c29ad93d69",
+    "DFL_04_03_positions_raw_observed_DFL-COM-000002_DFL-MAT-J03WQQ.xml": "cbefcb0bd7f39f3b",
+    "DFL_04_03_positions_raw_observed_DFL-COM-000002_DFL-MAT-J03WR9.xml": "70b6306918901906",
+}
+
+
+def _sha_prefix(path):
+    import hashlib
+    digest = hashlib.sha256()
+    with open(path, "rb") as handle:
+        for chunk in iter(lambda: handle.read(1 << 20), b""):
+            digest.update(chunk)
+    return digest.hexdigest()[:16]
+
+
+def download(folder=IDSSE_DIR):
+    """Fetch any missing IDSSE file (about 2.4 GB in all) and check every file's hash."""
+    import shutil
+    import urllib.request
+    os.makedirs(folder, exist_ok=True)
+    for name, expected in FILES.items():
+        path = os.path.join(folder, name)
+        if not os.path.exists(path):
+            print("downloading", name, flush=True)
+            partial = path + ".part"
+            with urllib.request.urlopen(HF_URL.format(HF_REVISION, name)) as response, \
+                    open(partial, "wb") as handle:
+                shutil.copyfileobj(response, handle, 1 << 20)
+            os.replace(partial, path)
+        if _sha_prefix(path) != expected:
+            raise IOError("{} does not match the pinned IDSSE file; delete it and rerun".format(
+                path))
+
+
 def match_ids(folder=IDSSE_DIR):
     paths = glob.glob(os.path.join(folder, "DFL_04_03_positions_raw_observed_*.xml"))
     return sorted(p.rsplit("DFL-MAT-", 1)[1][:-4] for p in paths)
@@ -85,12 +135,14 @@ def parse(match, folder=IDSSE_DIR):
         ball_rows.append((section, ball))
         total += n_last - n_first + 1
 
-    people = sorted({(k[1], k[2]) for k in streams if k[1] != "BALL"})
+    # Players only: the files also carry the referees (TeamId "referee"), who must not count
+    # as either team.
+    people = sorted({(k[1], k[2]) for k in streams if roles.get(k[1]) in ("home", "guest")})
     slot_of = {person: i for i, person in enumerate(people)}
     slots = np.full((total, len(people), 3), np.nan)
     team = np.array([0 if roles.get(t) == "home" else 1 for t, _ in people], dtype=np.int8)
     for (section, team_id, person), row in streams.items():
-        if team_id == "BALL":
+        if (team_id, person) not in slot_of:
             continue
         idx = np.asarray(row["N"]) + offsets[section]
         s = slot_of[(team_id, person)]
@@ -206,7 +258,31 @@ def degrade(arrays, answers, blocks, noise_m, seed=0):
             seconds = config.EXT_LIVE_GAP_MEDIAN_S * np.exp(config.EXT_LIVE_GAP_SIGMA * rng.randn())
             hide[start:min(last + 1, start + int(seconds * config.FPS))] = True
     ball[hide] = np.nan
-    return dict(arrays, ball=ball)
+    out = dict(arrays, ball=ball)
+    if config.EXT_DEGRADE_PLAYERS:
+        out["slots"] = degrade_players(arrays["slots"], hide | np.isnan(arrays["ball"][:, 0]),
+                                       rng)
+    return out
+
+
+def degrade_players(slots, ball_missing, rng):
+    """Copy of slots where each player drops out for a few seconds at a time, more often while
+    the ball is missing, so the share of missing players matches BAR-ATH (config EXT_PLAYER_*)."""
+    out = slots.copy()
+    n, n_slots = slots.shape[:2]
+    mean_len = config.EXT_PLAYER_DROP_MEDIAN_S * config.FPS * \
+        np.exp(config.EXT_PLAYER_DROP_SIGMA ** 2 / 2.0)
+    rate = np.where(ball_missing, config.EXT_PLAYER_MISSING_GAP,
+                    config.EXT_PLAYER_MISSING_SEEN) / mean_len      # dropout starts per frame
+    for s in range(n_slots):
+        starts = np.flatnonzero(rng.rand(n) < rate)
+        lengths = config.EXT_PLAYER_DROP_MEDIAN_S * config.FPS * \
+            np.exp(config.EXT_PLAYER_DROP_SIGMA * rng.randn(len(starts)))
+        drop = np.zeros(n + 1, dtype=np.int32)
+        np.add.at(drop, starts, 1)
+        np.add.at(drop, np.minimum(n, starts + np.maximum(1, lengths.astype(int))), -1)
+        out[np.cumsum(drop[:n]) > 0, s] = np.nan
+    return out
 
 
 def near_mode(arrays):
@@ -237,6 +313,9 @@ def score(labels, answers):
             "n_gt": spells["n_gt"], "n_pred": spells["n_pred"]}
 
 
+NO_VIDEO = {"videoball": False, "videofull": False, "whistle": False}
+
+
 # Matches used to choose settings, and matches held out to test the choice honestly.
 TUNE_MATCHES = ("J03WMX", "J03WOH", "J03WPY", "J03WR9")
 TEST_MATCHES = ("J03WN1", "J03WOY", "J03WQQ")
@@ -263,6 +342,8 @@ def prepared(matches, noise, seed=0, control_min_s=None):
 def evaluate(settings, data, options=None):
     """Mean spellF1 / macroF1 / predicted-vs-true possession ratio with config overrides."""
     from . import pipeline
+    # Other games have no video and must never read BAR-ATH's detections or homography.
+    options = dict(options or {}, videoball=False, videofull=False, whistle=False)
     saved = {key: getattr(config, key) for key in settings}
     try:
         for key, value in settings.items():
@@ -353,6 +434,7 @@ def variants(noise, settings=None):
 def main():
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     sub = parser.add_subparsers(dest="command", required=True)
+    sub.add_parser("download")
     sub.add_parser("convert")
     p_score = sub.add_parser("score")
     p_score.add_argument("--raw", action="store_true", help="score on the clean tracking")
@@ -378,6 +460,10 @@ def main():
         else:
             tune(noise)
         return
+    if args.command == "download":
+        download()
+        print("IDSSE files present and verified")
+        return
     from . import pipeline
     if args.command == "noise":
         best, modes = calibrate_noise(match_ids()[0])
@@ -392,7 +478,7 @@ def main():
             if not args.raw:
                 noise = config.EXT_BALL_NOISE_M if args.noise is None else args.noise
                 arrays = degrade(arrays, answers, blocks, noise)
-            labels, _ = pipeline.label(arrays, events=[], blocks=blocks)
+            labels, _ = pipeline.label(arrays, events=[], blocks=blocks, options=NO_VIDEO)
             print(match, {k: round(v, 3) if isinstance(v, float) else v
                           for k, v in score(labels, answers).items()}, flush=True)
 

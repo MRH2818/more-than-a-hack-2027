@@ -19,7 +19,7 @@ from games import GAME, half_video_blocks  # noqa: E402
 LETTERS = np.array(["H", "A", "D"])
 OPTIONS = ("restarts", "ballfree", "zone", "gapdead", "cleandead", "lineaware",
            "tagrestarts", "touches", "softcontrol", "videoball", "videofull",
-           "whistle")
+           "whistle", "learned", "learneddead", "learnedteam", "learnedblend", "learnedgap")
 
 
 def resolve_options(options=None):
@@ -29,7 +29,9 @@ def resolve_options(options=None):
            "cleandead": config.USE_CLEAN_DEAD, "lineaware": config.USE_LINE_AWARE,
            "tagrestarts": config.USE_TAG_RESTARTS, "touches": config.USE_TOUCHES,
            "softcontrol": config.USE_SOFT_CONTROL, "videoball": config.USE_VIDEO_BALL,
-           "videofull": False, "whistle": config.USE_WHISTLE}
+           "videofull": False, "whistle": config.USE_WHISTLE,
+           "learned": config.USE_LEARNED, "learneddead": False, "learnedteam": False,
+           "learnedblend": False, "learnedgap": config.USE_LEARNED_GAP}
     for key, value in (options or {}).items():
         if key not in out:
             raise ValueError("unknown option {!r}; expected one of {}".format(key, OPTIONS))
@@ -39,7 +41,7 @@ def resolve_options(options=None):
 
 def emissions(arrays, events, graded_mask, blocks, calibrate_zone=False, gap_dead=False,
               clean_dead=False, line_aware=False, use_touches=False, soft_control=False,
-              video_xy=None):
+              video_xy=None, model=None, learned_mode="full"):
     """(T, 3) per-frame log-likelihoods for H, A, D plus the intermediate pieces.
 
     video_xy: optional (T, 2) metres of video ball where the ATD has none; used for the team
@@ -57,13 +59,16 @@ def emissions(arrays, events, graded_mask, blocks, calibrate_zone=False, gap_dea
     if calibrate_zone:
         zone, zone_info = evidence.calibrate_zone(d_home, d_away,
                                                   graded_mask & ball["observed"] & ~ball["oob"])
-    state = evidence.control(d_home, d_away, possession_zone=zone)
+    # Settings read here (not as function defaults) so a search that changes config takes effect.
+    state = evidence.control(d_home, d_away, possession_zone=zone, duel_zone=config.DUEL_ZONE_M)
 
     out = np.zeros((n, 3))
     if soft_control:
-        out[:, :2] += evidence.soft_control_loglik(d_home, d_away, zone)
+        out[:, :2] += evidence.soft_control_loglik(d_home, d_away, zone,
+                                                   margin=config.TOUCH_MARGIN_M,
+                                                   weight=config.CONTROL_LL)
     else:
-        out[:, :2] += evidence.control_loglik(state)
+        out[:, :2] += evidence.control_loglik(state, weight=config.CONTROL_LL)
     # Turnovers snap to the first frame the new team is seen in control (or touching the ball).
     snap_state = state.copy()
     touch_info = None
@@ -77,6 +82,41 @@ def emissions(arrays, events, graded_mask, blocks, calibrate_zone=False, gap_dea
                                             tagging.set_piece_intervals(events), gap_dead,
                                             clean_dead, line_aware)
     out[:, 2] += dead
+
+    if model is not None:
+        # Learned evidence replaces the hand-made control and dead-ball cues. Kept on top: the
+        # Smart Tagging priors (not available on the training games) and, in ATD gaps only, the
+        # video ball's control evidence (as in v6, team evidence only).
+        # Partial modes keep the hand-made half: "dead" learns only dead-vs-alive, "team" only
+        # home-vs-away, "blend" adds the learned evidence to all of the hand-made evidence.
+        from . import learned
+        learned_out = learned.emissions(model, arrays, learned_mode)
+        if learned_mode == "teamgap":
+            # Learned home-vs-away evidence ONLY where the ATD has no ball; everything else
+            # (including the video ball's control evidence in those gaps and the tag priors)
+            # stays as in v6.
+            gap = ~ball["known"]
+            out[:, :2] += np.where(gap[:, None], learned_out[:, :2], 0.0)
+        elif learned_mode == "blend":
+            out = out + learned_out
+        elif learned_mode == "dead":
+            out[:, 2] = learned_out[:, 2] + dead_parts["setpiece"]
+        else:
+            if learned_mode == "full":
+                out = learned_out.copy()
+                out[:, 2] += dead_parts["setpiece"]
+            else:
+                out[:, :2] = learned_out[:, :2]
+            out[:, :2] += tagging.team_prior(events, n)
+        if video_xy is not None and learned_mode in ("full", "team"):  # teamgap keeps v6's
+            gap = np.isnan(ball["xy"][:, 0]) & ~np.isnan(video_xy[:, 0])
+            v_home, v_away = evidence.team_distances(arrays["slots"], arrays["team"], video_xy,
+                                                     pitch)
+            video_ll = evidence.soft_control_loglik(v_home, v_away, zone,
+                                                    margin=config.TOUCH_MARGIN_M,
+                                                    weight=config.CONTROL_LL)
+            out[:, :2] += config.LEARNED_VIDEO_LL / config.CONTROL_LL * \
+                np.where(gap[:, None], video_ll, 0.0)
 
     with np.errstate(invalid="ignore"):
         moving = ball["observed"] & (ball["speed"] >= config.BALL_MOVING_MS)
@@ -128,9 +168,23 @@ def _decode_blocks(scores, parts, blocks, n, bonus=None):
     return codes
 
 
-def label(arrays, events=None, game=GAME, options=None, blocks=None):
-    """(T,) array of 'H'/'A'/'D'/'X' for the whole video, plus diagnostics pieces."""
+def label(arrays, events=None, game=GAME, options=None, blocks=None, model=None):
+    """(T,) array of 'H'/'A'/'D'/'X' for the whole video, plus diagnostics pieces.
+
+    model: learned.Model to use when the "learned" option is on (default: learned.default_model,
+    trained on the IDSSE matches)."""
     opts = resolve_options(options)
+    learned_modes = [m for m in ("learned", "learneddead", "learnedteam", "learnedblend",
+                                 "learnedgap") if opts[m]]
+    if len(learned_modes) > 1:
+        raise ValueError("choose one learned mode, got {}".format(learned_modes))
+    learned_mode = {"learned": "full", "learneddead": "dead", "learnedteam": "team",
+                    "learnedblend": "blend", "learnedgap": "teamgap"}[learned_modes[0]] if learned_modes else None
+    if learned_mode and model is None:
+        from . import learned
+        model = learned.default_model()
+    if not learned_mode:
+        model = None
     n = arrays["slots"].shape[0]
     events = tagging.load_events() if events is None else events
     blocks = half_video_blocks(game) if blocks is None else blocks
@@ -155,7 +209,8 @@ def label(arrays, events=None, game=GAME, options=None, blocks=None):
                               gap_dead=opts["gapdead"],
                               clean_dead=opts["cleandead"],
                               line_aware=opts["lineaware"], use_touches=opts["touches"],
-                              soft_control=opts["softcontrol"], video_xy=video_xy)
+                              soft_control=opts["softcontrol"], video_xy=video_xy,
+                              model=model, learned_mode=learned_mode or "full")
     parts["video"] = video_info
     bonus = None
     if opts["whistle"]:

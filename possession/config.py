@@ -278,6 +278,18 @@ EXT_LIVE_GAP_SIGMA = 0.44
 EXT_NOISE_TAU = FPS
 EXT_TARGET_NEAR_MODE_M = 1.14
 EXT_BALL_NOISE_M = 0.25  # chosen by `python -m possession.external noise`
+# Player tracking (`python -m possession.players`, BAR-ATH graded frames, aggregates): players
+# tracked per team average 10.70 while the ATD has the ball and 9.58 while it does not (IDSSE:
+# always 11), p10 9. Other differences (positions, speeds) are negligible. So each IDSSE player
+# drops out for a few seconds at a time, at rates giving those missing shares. The dropout
+# length is not measured on BAR-ATH: lognormal, median 4 s, sigma 0.8, chosen up front.
+# Rates are set so the DEGRADED IDSSE measures match those targets (dropouts overlap and spill
+# from ball gaps into seen frames): `python -m possession.players --idsse`.
+EXT_PLAYER_MISSING_SEEN = 0.018
+EXT_PLAYER_MISSING_GAP = 0.18
+EXT_PLAYER_DROP_MEDIAN_S = 4.0
+EXT_PLAYER_DROP_SIGMA = 0.8
+EXT_DEGRADE_PLAYERS = True
 
 # Converting other games' answers to THIS challenge's definition before tuning. CHALLENGE.md: a
 # change of possession needs *controlled* possession ("a player keeps the ball for a few
@@ -288,3 +300,22 @@ EXT_BALL_NOISE_M = 0.25  # chosen by `python -m possession.external noise`
 # that team. Spells starting from a stoppage are kept (CHALLENGE.md: every restart has a clear
 # possessor). "A few seconds" -> 3 s; 2 s is run as a robustness check.
 EXT_CONTROL_MIN_S = 3.0
+
+# -- learned evidence (possession/learned.py) -----------------------------------------------------
+# Gradient-boosted P(H/A/D | tracking features), trained only on the IDSSE matches (other games,
+# degraded to look like BAR-ATH, answers in the challenge definition). Off until it passes the
+# IDSSE held-out test and the BAR-ATH checks; see NOTES.md.
+USE_LEARNED = False
+USE_LEARNED_GAP = False    # learned home-vs-away evidence only where the ATD has no ball
+LEARNED_WEIGHT = 1.0       # emissions = weight * (log P(class|x) - log P(class))
+LEARNED_SEEDS = (10, 11)   # degradation seeds for training copies (evaluation uses seed 1)
+LEARNED_STRIDE = 4         # every 4th frame: neighbouring frames are near-duplicates
+LEARNED_TREES = 200
+LEARNED_VIDEO_LL = 1.0     # weight of hand soft-control evidence from the video ball in ATD gaps
+
+# Candidate settings from the IDSSE clue-parameter search (2026-11-12, corrected bench, 4 tune
+# matches; see NOTES.md). Not applied unless chosen; masktest variants use them.
+DEAD_PARAMS = {"PLAYER_SPEED_WEIGHT": 0.25, "OOB_LL": 1.5, "MOVING_ALIVE_LL": 2.0,
+               "STATIONARY_DEAD_LL": 1.0, "GAP_OOB_LL": 2.0}
+SEARCH_PARAMS = dict(DEAD_PARAMS, DUEL_ZONE_M=1.5, TOUCH_MARGIN_M=0.5, SNAP_WINDOW=150,
+                     SWITCH_TURNOVER=4.0, MIN_POSSESSION=150)

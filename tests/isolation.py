@@ -17,6 +17,7 @@ from possession import config  # noqa: E402
 NOWHERE = os.path.join(ROOT, "tests", "_no_such_dir")
 config.USE_VIDEO_BALL = False
 config.USE_WHISTLE = False
+config.USE_LEARNED = False
 config.VIDEO_DETECTIONS = os.path.join(NOWHERE, "detections.npz")
 config.CACHE_DIR = NOWHERE
 

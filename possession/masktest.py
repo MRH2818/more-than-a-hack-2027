@@ -46,6 +46,18 @@ VARIANTS = {
     "whistle": {"whistle": True},
     "video+whistle": {"videoball": True, "whistle": True},
     "video": {"videoball": True},
+    "learned": {"learned": True},
+    "learned-novideo": {"learned": True, "videoball": False},
+    "l-dead": {"learneddead": True},
+    "l-team": {"learnedteam": True},
+    "l-blend": {"learnedblend": True},
+    "l-gap": {"learnedgap": True},
+    "l-gap-novideo": {"learnedgap": True, "videoball": False},
+    "deadparams": {"_settings": config.DEAD_PARAMS},
+    "allparams": {"_settings": config.SEARCH_PARAMS},
+    "l-gap+dead": {"learnedgap": True, "_settings": config.DEAD_PARAMS},
+    "l-gap+all": {"learnedgap": True, "_settings": config.SEARCH_PARAMS},
+    "novideo": {"videoball": False},
     "videofull": {"videofull": True},
     "video+touch": {"videoball": True, "touches": True},
     "touch+all": {"touches": True, "softcontrol": True, "restarts": True, "tagrestarts": True,
@@ -125,8 +137,18 @@ def main():
     rows = []
     for name in args.variants:
         began = time.time()
-        real, parts = pipeline.label(arrays, events=events, options=VARIANTS[name])
-        cut, _ = pipeline.label(masked_arrays, events=events, options=VARIANTS[name])
+        spec = VARIANTS[name]
+        options = {k: v for k, v in spec.items() if k != "_settings"}
+        settings = spec.get("_settings", {})
+        saved = {key: getattr(config, key) for key in settings}
+        try:
+            for key, value in settings.items():
+                setattr(config, key, value)
+            real, parts = pipeline.label(arrays, events=events, options=options)
+            cut, _ = pipeline.label(masked_arrays, events=events, options=options)
+        finally:
+            for key, value in saved.items():
+                setattr(config, key, value)
         if name == "base":
             base_reference = real
         own = compare(real, cut, hidden, runs)
