@@ -353,3 +353,11 @@ passes the BAR-ATH gate (automatic tags, no ground truth); the transition tolera
 was fixed before the gate existed. Public window not consulted for any of this.
 Public-window sanity rule for v7, set before looking: it is a pipeline-correctness check only;
 v7 is kept unless the look reveals a defect (e.g. score below the baselines, misaligned frames).
+v7 on BAR-ATH: 329 possessions (3.11/min), 145 stoppages, D 42.6%, valid file. Public 5 min
+(sanity only, rule set beforehand): spellF1 0.514, macroF1 0.712, 18 possessions vs 17, team
+accuracy 0.873 -> no defect, v7 kept. Caution for the write-up: D recall in that window 0.37
+(v6 0.55) while IDSSE macroF1 favours v7 (0.908 vs 0.838); not tuned on.
+Reproducibility (2026-11-13): model retrained from scratch (`learned train`), ATD cache
+rebuilt, CSV byte-identical to possession_v7.csv (video detections reused; their determinism
+was shown on 2026-11-11). Bug found on the way: the model cache pickled the Model class, which
+failed to load after `python -m possession.learned train`; cache now stores plain parts.
