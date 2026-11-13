@@ -323,6 +323,9 @@ LEARNED_WEIGHT = 1.0       # emissions = weight * (log P(class|x) - log P(class)
 LEARNED_SEEDS = (10, 11)   # degradation seeds for training copies (evaluation uses seed 1)
 LEARNED_STRIDE = 4         # every 4th frame: neighbouring frames are near-duplicates
 LEARNED_TREES = 200
+LEARNED_LEVEL = 1          # feature set: 1 = v7; 2 adds last/next controller, ball turns, context
+LEARNED_NOISES = (EXT_BALL_NOISE_M,)   # ball-noise levels pooled for training
+LEARNED_MEMBERS = 1        # classifiers averaged (deterministic bagging when > 1)
 LEARNED_CONTROL_MIN_S = 1.0    # answers' control rule for TRAINING (scoring still uses EXT_CONTROL_MIN_S)
 LEARNED_VIDEO_LL = 1.0     # weight of hand soft-control evidence from the video ball in ATD gaps
 
@@ -332,3 +335,9 @@ DEAD_PARAMS = {"PLAYER_SPEED_WEIGHT": 0.25, "OOB_LL": 1.5, "MOVING_ALIVE_LL": 2.
                "STATIONARY_DEAD_LL": 1.0, "GAP_OOB_LL": 2.0}
 SEARCH_PARAMS = dict(DEAD_PARAMS, DUEL_ZONE_M=1.5, TOUCH_MARGIN_M=0.5, SNAP_WINDOW=150,
                      SWITCH_TURNOVER=4.0, MIN_POSSESSION=150)
+
+# Boundary refinement (possession/learned.py; off unless USE_BOUNDARY)
+USE_BOUNDARY = False
+BOUNDARY_HALF = 6          # training target: a true change within 6 frames (0.24 s)
+BOUNDARY_WINDOW = 50       # search 2 s either side of the decoded boundary
+BOUNDARY_MARGIN = 0.05     # the new frame must score this much higher

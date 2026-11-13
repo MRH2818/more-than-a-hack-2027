@@ -91,6 +91,51 @@ class HelperTests(unittest.TestCase):
         self.assertTrue(np.isnan(out["v_next_seen"][6]))
 
 
+class ExtraFeatureTests(unittest.TestCase):
+    def test_since_until(self):
+        mask = np.array([0, 1, 0, 0, 1, 0], dtype=bool)
+        since, until = learned._since_until(mask, cap=99)
+        np.testing.assert_array_equal(since, [99, 0, 1, 2, 0, 1])
+        np.testing.assert_array_equal(until, [1, 0, 2, 1, 0, 99])
+
+    def test_level_2_is_a_superset_and_team_symmetric(self):
+        arrays, _ = toy_match(n=1500)
+        base = learned.features(arrays, 1)
+        rich = learned.features(arrays, 2)
+        self.assertTrue(set(base) < set(rich))
+        mirrored = learned.features(swap_teams(arrays), 2)
+        swapped = learned.swapped(rich)
+        self.assertTrue(any(name.endswith(learned.SIGNED) for name in rich))
+        for name in rich:                    # includes the signed home-minus-away features
+            np.testing.assert_allclose(mirrored[name], swapped[name], equal_nan=True,
+                                       err_msg=name)
+
+
+class BoundaryTests(unittest.TestCase):
+    def test_boundary_target(self):
+        answers = np.array(list("HHHHAAAAXXDD"))
+        target = learned.boundary_target(answers, half=1)
+        np.testing.assert_array_equal(target, [0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0])
+
+    def test_refine_moves_to_the_peak_but_not_past_neighbours(self):
+        labels = np.array(list("H" * 10 + "A" * 10 + "D" * 10))
+        score = np.zeros(30)
+        score[7] = 1.0                      # true turnover 3 frames earlier
+        score[29] = 1.0                     # far from the A->D boundary, beyond its midpoint
+        out = learned.refine_boundaries(labels, score, window=20, margin=0.05)
+        self.assertEqual("".join(out), "H" * 7 + "A" * 13 + "D" * 10)
+
+    def test_refine_keeps_boundary_without_a_clear_peak(self):
+        labels = np.array(list("H" * 10 + "A" * 10))
+        out = learned.refine_boundaries(labels, np.full(20, 0.3), window=5, margin=0.05)
+        np.testing.assert_array_equal(out, labels)
+
+    def test_merge_short_stoppages(self):
+        labels = np.array(list("HHHDDHHHDDDDAAADH"))
+        out = learned.merge_short_stoppages(labels, max_frames=2)
+        self.assertEqual("".join(out), "HHHHHHHHDDDDAAADH")
+
+
 class SymmetryTests(unittest.TestCase):
     def test_swapping_teams_in_the_data_swaps_paired_features(self):
         arrays, _ = toy_match(n=1500)

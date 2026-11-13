@@ -361,3 +361,26 @@ Reproducibility (2026-11-13): model retrained from scratch (`learned train`), AT
 rebuilt, CSV byte-identical to possession_v7.csv (video detections reused; their determinism
 was shown on 2026-11-11). Bug found on the way: the model cache pickled the Model class, which
 failed to load after `python -m possession.learned train`; cache now stores plain parts.
+
+## 2026-11-13 (later) — towards v8: screening on IDSSE (2-fold inside the tune matches)
+`possession/lab.py`; columns: 3 s answers / 1 s answers / 3 s at 3x noise, then the mean.
+v6 0.611 / 0.543 / 0.576 (0.577); v7 0.705 / 0.621 / 0.643 (0.656).
+- Robust training: 4 degradation seeds 0.667; noise mix 0.25+0.5 0.665; 0.25+0.5+0.75 0.668;
+  ensemble of 3 0.660; 400 trees 0.660.
+- Level-2 features (last/next clear controller and time since/until, ball turn and
+  acceleration, wider windows) 0.671; with noise mix 0.25+0.5 0.675.
+- Decoder: MIN_DEAD 12/50, SWITCH_TO_DEAD 2/8, SWITCH_FROM_DEAD 4/16, LEARNED_WEIGHT 0.5/2: all
+  0.656-0.661. The decoder is not the bottleneck.
+- Post-processing: merging stoppages <= 12/25/50 frames between same-team spells 0.655-0.656;
+  boundary refinement by a second classifier (window 25-100, margin 0.05-0.15) 0.656-0.661.
+  Neither worth adopting.
+Metrica public sample matches (possession/metrica.py; same provider; answers from their events:
+D = no ball in the tracking, team = latest on-ball event; 4.0-4.3 possessions/min), degraded
+like BAR-ATH, models trained on all 7 IDSSE matches, spellF1 vs raw event answers / 1 s rule:
+v6 0.534 / 0.581 (macroF1 0.865); v7 settings (1 s-trained, MIN_POSSESSION 75) 0.600 / 0.658
+(macroF1 0.907); 3 s-trained 0.580 / 0.638; raw-DFL-trained 0.606 / 0.664; MIN_POSSESSION 50
+adds ~0.01. v7 > v6 on a third independent dataset; predicted/true possession ratio 0.65.
+Error breakdown of v7 (tune folds, 3 s answers, 926 true possessions): matched IoU >= 0.7 58%;
+0.5-0.7 17%; 0.3-0.5 11%; given to the other team 10% (median 4.2 s); swallowed / split /
+called dead 4%. Dead ball is not the bench bottleneck; boundary precision and short
+possessions are.

@@ -193,6 +193,9 @@ def cache_path(match):
 
 
 def load(match):
+    if match.startswith("MET"):            # Metrica's public sample matches (possession/metrica.py)
+        from . import metrica
+        return metrica.load(match)
     path = cache_path(match)
     if not os.path.exists(path):
         arrays, answers, blocks = parse(match)

@@ -26,6 +26,7 @@ from . import config, evidence
 
 CLASSES = ("H", "A", "D")
 PAIRED = "__home", "__away"
+SIGNED = "__signed"          # home-minus-away quantities: negated when the teams are swapped
 
 
 # -- small helpers ------------------------------------------------------------------------------
@@ -68,13 +69,82 @@ def _gap_features(observed, values):
 
 # -- features -----------------------------------------------------------------------------------
 
-def features(arrays):
-    """Dict name -> (T,) float array. Paired features end in __home / __away."""
+def features(arrays, level=1):
+    """Dict name -> (T,) float array. Paired features end in __home / __away.
+
+    level 1: the v7 set. level 2 adds who last / next had clear control and how long ago, ball
+    direction changes and wider context (_features_extra)."""
     import warnings
     with warnings.catch_warnings():
         # Frames with no tracked player (outside play) give empty means: NaN is intended.
         warnings.simplefilter("ignore", RuntimeWarning)
-        return _features(arrays)
+        f = _features(arrays)
+        if level >= 2:
+            f.update(_features_extra(arrays, f))
+        return f
+
+
+def _since_until(mask, cap):
+    """Frames since `mask` was last True and until it is next True (capped)."""
+    n = len(mask)
+    idx = np.arange(n)
+    last = np.maximum.accumulate(np.where(mask, idx, -1))
+    nxt = np.minimum.accumulate(np.where(mask, idx, n)[::-1])[::-1]
+    since = np.where(last >= 0, idx - last, cap).astype(np.float64)
+    until = np.where(nxt < n, nxt - idx, cap).astype(np.float64)
+    return np.minimum(since, cap), np.minimum(until, cap)
+
+
+def _features_extra(arrays, f):
+    pitch = tuple(float(v) for v in arrays["pitch"])
+    ball = ball_mod.track(arrays["ball"], pitch)
+    xy = ball["xy"]
+    n = len(xy)
+    out = {}
+    cap = 30 * config.FPS
+
+    # Who was last / is next in clear control (ball in a player's zone, no opponent near).
+    state = evidence.control(f["dist" + PAIRED[0]], f["dist" + PAIRED[1]],
+                             possession_zone=config.POSSESSION_ZONE_M,
+                             duel_zone=config.DUEL_ZONE_M)
+    since, until = {}, {}
+    for code, suffix in ((evidence.HOME, PAIRED[0]), (evidence.AWAY, PAIRED[1])):
+        since[suffix], until[suffix] = _since_until(state == code, cap)
+        out["ctrl_since" + suffix] = since[suffix]
+        out["ctrl_until" + suffix] = until[suffix]
+        out["ctrl_share_500" + suffix] = _window_mean((state == code).astype(np.float64),
+                                                      500, 500)
+    # Signed: positive when home was the more recent / is the sooner controller.
+    out["last_ctrl_lead" + SIGNED] = since[PAIRED[1]] - since[PAIRED[0]]
+    out["next_ctrl_lead" + SIGNED] = until[PAIRED[1]] - until[PAIRED[0]]
+    duel_since, duel_until = _since_until(state == evidence.DUEL, cap)
+    out["duel_since"], out["duel_until"] = duel_since, duel_until
+
+    # Ball direction change and acceleration (touches, passes, shots).
+    vel = ball_mod.velocity(xy)
+    k = 5
+    before = np.full((n, 2), np.nan)
+    after = np.full((n, 2), np.nan)
+    before[k:] = xy[k:] - xy[:-k]
+    after[:-k] = xy[k:] - xy[:-k]
+    norm = np.hypot(before[:, 0], before[:, 1]) * np.hypot(after[:, 0], after[:, 1])
+    with np.errstate(invalid="ignore", divide="ignore"):
+        cosine = np.where(norm > 1e-6, (before * after).sum(axis=1) / norm, np.nan)
+    turn = 1.0 - np.clip(cosine, -1.0, 1.0)                      # 0 straight, 2 reversed
+    out["ball_turn"] = turn
+    out["ball_turn_max_12"] = _window_mean(turn, 12, 12)
+    speed = np.hypot(vel[:, 0], vel[:, 1])
+    accel = np.full(n, np.nan)
+    accel[1:-1] = (speed[2:] - speed[:-2]) * config.FPS / 2.0
+    out["ball_accel"] = np.clip(accel, -80.0, 80.0)
+    out["ball_speed_change_25"] = _window_mean(speed, 0, 25) - _window_mean(speed, 25, 0)
+
+    # Wider context.
+    out["speed_rel_500"] = _window_mean(f["speed_rel_25"], 500, 500)
+    out["ball_seen_frac_750"] = _window_mean(f["ball_observed"], 750, 750)
+    for suffix in PAIRED:
+        out["ctrl_500_500" + suffix] = _window_mean(f["ctrl_now" + suffix], 500, 500)
+    return out
 
 
 def _features(arrays):
@@ -181,6 +251,8 @@ def swapped(f):
             out[name] = f[name[:-len(PAIRED[0])] + PAIRED[1]]
         elif name.endswith(PAIRED[1]):
             out[name] = f[name[:-len(PAIRED[1])] + PAIRED[0]]
+        elif name.endswith(SIGNED):
+            out[name] = -np.asarray(values)
         else:
             out[name] = values
     return out
@@ -193,22 +265,35 @@ def matrix(f, names):
 # -- model --------------------------------------------------------------------------------------
 
 class Model:
-    """Classifier plus what is needed to turn its output into decoder emissions."""
+    """Classifier(s) plus what is needed to turn their output into decoder emissions."""
 
-    def __init__(self, classifier, names, log_prior):
-        self.classifier, self.names, self.log_prior = classifier, names, log_prior
+    def __init__(self, classifier, names, log_prior, level=1):
+        self.classifiers = list(classifier) if isinstance(classifier, (list, tuple)) \
+            else [classifier]
+        self.names, self.log_prior, self.level = names, log_prior, level
+
+    @property
+    def classifier(self):
+        return self.classifiers[0]
+
+    def featurize(self, arrays):
+        return features(arrays, getattr(self, "level", 1))
 
     def log_odds(self, f):
-        """(T, 3) log P(class | x) - log P(class), averaged over the two team views."""
-        direct = self.classifier.predict_proba(matrix(f, self.names))
-        mirror = self.classifier.predict_proba(matrix(swapped(f), self.names))[:, [1, 0, 2]]
-        prob = np.clip(0.5 * (direct + mirror), 1e-6, 1.0)
+        """(T, 3) log P(class | x) - log P(class), averaged over the two team views (and over
+        the classifiers of an ensemble)."""
+        direct_x, mirror_x = matrix(f, self.names), matrix(swapped(f), self.names)
+        prob = 0.0
+        for classifier in self.classifiers:
+            prob = prob + classifier.predict_proba(direct_x) \
+                + classifier.predict_proba(mirror_x)[:, [1, 0, 2]]
+        prob = np.clip(prob / (2.0 * len(self.classifiers)), 1e-6, 1.0)
         return np.log(prob) - self.log_prior
 
 
-def training_rows(arrays, answers, stride):
+def training_rows(arrays, answers, stride, level=1):
     """Feature rows (original and team-swapped) and class targets, every `stride`-th frame."""
-    f = features(arrays)
+    f = features(arrays, level)
     names = sorted(f)
     target = np.full(len(answers), -1, dtype=np.int8)
     for code, letter in enumerate(CLASSES):
@@ -221,28 +306,187 @@ def training_rows(arrays, answers, stride):
     return names, np.vstack([x_direct, x_mirror]), np.concatenate([y, y_mirror])
 
 
-def train(matches, seeds=None, stride=None, noise=None, control_min_s=None):
-    """Fit the classifier on degraded copies of `matches` (IDSSE ids)."""
-    from sklearn.ensemble import HistGradientBoostingClassifier
+def bench_key():
+    """Everything that changes what a degraded IDSSE copy looks like."""
+    return tuple((name, getattr(config, name)) for name in sorted(vars(config))
+                 if name.startswith("EXT_"))
+
+
+def _rows_cached(match, seed, noise, control_min_s, stride, level):
+    """training_rows for one degraded match, cached on disk (IDSSE-derived, local only)."""
+    import hashlib
     from . import external
+    key = repr((match, seed, noise, control_min_s, stride, level, FEATURE_VERSION, bench_key()))
+    folder = os.path.join(config.CACHE_DIR, "external", "rows")
+    path = os.path.join(folder, hashlib.sha256(key.encode()).hexdigest()[:16] + ".npz")
+    if os.path.exists(path):
+        with np.load(path, allow_pickle=False) as saved:
+            return [str(v) for v in saved["names"]], saved["x"], saved["y"]
+    arrays, answers, _ = external.prepared((match,), noise, seed=seed,
+                                           control_min_s=control_min_s)[match]
+    names, x, y = training_rows(arrays, answers, stride, level)
+    os.makedirs(folder, exist_ok=True)
+    np.savez(path, names=np.array(names), x=x, y=y)
+    return names, x, y
+
+
+FEATURE_VERSION = 2
+
+
+def train(matches, seeds=None, stride=None, noise=None, control_min_s=None, level=None,
+          trees=None, members=None):
+    """Fit the classifier(s) on degraded copies of `matches` (IDSSE ids).
+
+    noise may be one value or several (training rows are pooled over them); members > 1 fits
+    an ensemble that differs in random_state and in which degradation seed each member skips.
+    """
+    from sklearn.ensemble import HistGradientBoostingClassifier
 
     seeds = config.LEARNED_SEEDS if seeds is None else seeds
     stride = config.LEARNED_STRIDE if stride is None else stride
+    noise = config.LEARNED_NOISES if noise is None else noise
+    noises = tuple(noise) if isinstance(noise, (tuple, list)) else (noise,)
+    level = config.LEARNED_LEVEL if level is None else level
+    trees = config.LEARNED_TREES if trees is None else trees
+    members = config.LEARNED_MEMBERS if members is None else members
+    xs, ys, names = [], [], None
+    for level_noise in noises:
+        for seed in seeds:
+            for match in matches:
+                names, x, y = _rows_cached(match, seed, level_noise, control_min_s, stride, level)
+                xs.append(x)
+                ys.append(y)
+    x, y = np.vstack(xs), np.concatenate(ys)
+    classifiers = []
+    for member in range(members):
+        classifier = HistGradientBoostingClassifier(
+            max_iter=trees, learning_rate=0.1, max_leaf_nodes=31,
+            min_samples_leaf=200, l2_regularization=1.0, early_stopping=False,
+            random_state=member)
+        if members > 1:
+            # Each member sees a fixed, different 80% of the rows (deterministic bagging).
+            keep = np.random.RandomState(1000 + member).rand(len(y)) < 0.8
+            classifier.fit(x[keep], y[keep])
+        else:
+            classifier.fit(x, y)
+        classifiers.append(classifier)
+    prior = np.bincount(y, minlength=3) / float(len(y))
+    return Model(classifiers, names, np.log(prior), level)
+
+
+# -- boundary refinement ---------------------------------------------------------------------------
+# A second classifier scores "a possession starts or ends right here" per frame; after decoding,
+# each boundary moves to the best-scoring frame nearby. spellF1 is an IoU score: a boundary 1 s
+# off costs about a third of that possession's credit (EVALUATION.md).
+
+def boundary_target(answers, half):
+    """(T,) 1 where a label change (between graded labels) lies within `half` frames."""
+    change = np.zeros(len(answers), dtype=bool)
+    differs = (answers[1:] != answers[:-1]) & (answers[1:] != "X") & (answers[:-1] != "X")
+    change[1:] = differs
+    reach = np.convolve(change.astype(np.int32), np.ones(2 * half + 1, dtype=np.int32),
+                        mode="same")
+    return (reach > 0).astype(np.int8)
+
+
+def _boundary_rows_cached(match, seed, noise, control_min_s, stride, level, half):
+    import hashlib
+    from . import external
+    key = repr(("boundary", match, seed, noise, control_min_s, stride, level, half,
+                FEATURE_VERSION, bench_key()))
+    folder = os.path.join(config.CACHE_DIR, "external", "rows")
+    path = os.path.join(folder, hashlib.sha256(key.encode()).hexdigest()[:16] + ".npz")
+    if os.path.exists(path):
+        with np.load(path, allow_pickle=False) as saved:
+            return [str(v) for v in saved["names"]], saved["x"], saved["y"]
+    arrays, answers, _ = external.prepared((match,), noise, seed=seed,
+                                           control_min_s=control_min_s)[match]
+    f = features(arrays, level)
+    names = sorted(f)
+    target = boundary_target(answers, half)
+    graded = np.flatnonzero(answers != "X")
+    # Every boundary-neighbourhood frame, plus every `stride`-th other frame.
+    keep = np.union1d(graded[target[graded] == 1], graded[::stride])
+    x = np.vstack([matrix(f, names)[keep], matrix(swapped(f), names)[keep]])
+    y = np.concatenate([target[keep], target[keep]])
+    os.makedirs(folder, exist_ok=True)
+    np.savez(path, names=np.array(names), x=x, y=y)
+    return names, x, y
+
+
+class BoundaryModel:
+    def __init__(self, classifier, names, level):
+        self.classifier, self.names, self.level = classifier, names, level
+
+    def score(self, arrays):
+        """(T,) P(boundary here), averaged over the two team views and 5 frames."""
+        f = features(arrays, self.level)
+        p = 0.5 * (self.classifier.predict_proba(matrix(f, self.names))[:, 1]
+                   + self.classifier.predict_proba(matrix(swapped(f), self.names))[:, 1])
+        return np.convolve(p, np.ones(5) / 5.0, mode="same")
+
+
+def train_boundary(matches, seeds=None, stride=None, noise=None, control_min_s=None, level=2,
+                   half=None, trees=None):
+    from sklearn.ensemble import HistGradientBoostingClassifier
+    seeds = config.LEARNED_SEEDS if seeds is None else seeds
+    stride = config.LEARNED_STRIDE if stride is None else stride
     noise = config.EXT_BALL_NOISE_M if noise is None else noise
+    half = config.BOUNDARY_HALF if half is None else half
     xs, ys, names = [], [], None
     for seed in seeds:
-        for match, (arrays, answers, _) in external.prepared(matches, noise, seed=seed,
-                                                             control_min_s=control_min_s).items():
-            names, x, y = training_rows(arrays, answers, stride)
+        for match in matches:
+            names, x, y = _boundary_rows_cached(match, seed, noise, control_min_s, stride, level,
+                                                half)
             xs.append(x)
             ys.append(y)
-    x, y = np.vstack(xs), np.concatenate(ys)
     classifier = HistGradientBoostingClassifier(
-        max_iter=config.LEARNED_TREES, learning_rate=0.1, max_leaf_nodes=31,
-        min_samples_leaf=200, l2_regularization=1.0, early_stopping=False, random_state=0)
-    classifier.fit(x, y)
-    prior = np.bincount(y, minlength=3) / float(len(y))
-    return Model(classifier, names, np.log(prior))
+        max_iter=config.LEARNED_TREES if trees is None else trees, learning_rate=0.1,
+        max_leaf_nodes=31, min_samples_leaf=200, l2_regularization=1.0, early_stopping=False,
+        random_state=0)
+    classifier.fit(np.vstack(xs), np.concatenate(ys))
+    return BoundaryModel(classifier, names, level)
+
+
+def refine_boundaries(labels, score, window=None, margin=None):
+    """Move each label change to the best-scoring frame within `window` frames, never past the
+    midpoint to the neighbouring change, and only if that frame beats the current one by
+    `margin`. labels: (T,) letters; frames labelled X separate independent stretches."""
+    window = config.BOUNDARY_WINDOW if window is None else window
+    margin = config.BOUNDARY_MARGIN if margin is None else margin
+    out = labels.copy()
+    changes = np.flatnonzero((labels[1:] != labels[:-1]) & (labels[1:] != "X")
+                             & (labels[:-1] != "X")) + 1
+    edges = np.flatnonzero((labels[1:] != labels[:-1])) + 1          # includes X edges
+    for b in changes.tolist():
+        i = int(np.searchsorted(edges, b))
+        prev_edge = int(edges[i - 1]) if i > 0 else 0
+        next_edge = int(edges[i + 1]) if i + 1 < len(edges) else len(labels)
+        lo = max(b - window, (prev_edge + b) // 2 + 1, 1)
+        hi = min(b + window, (b + next_edge) // 2)
+        if hi <= lo:
+            continue
+        target = lo + int(np.argmax(score[lo:hi + 1]))
+        if target == b or score[target] < score[b] + margin:
+            continue
+        if target < b:
+            out[target:b] = labels[b]
+        else:
+            out[b:target] = labels[b - 1]
+    return out
+
+
+def merge_short_stoppages(labels, max_frames):
+    """Relabel D runs of at most max_frames that sit between two spells of the SAME team."""
+    from .ball import runs_of
+    out = labels.copy()
+    for start, stop in runs_of(labels == "D"):
+        if stop - start > max_frames or start == 0 or stop >= len(labels):
+            continue
+        before, after = labels[start - 1], labels[stop]
+        if before == after and before in ("H", "A"):
+            out[start:stop] = before
+    return out
 
 
 def model_path(key=None):
@@ -256,7 +500,9 @@ def default_model(rebuild=False):
     """The model used on BAR-ATH: trained on all IDSSE matches, cached under cache/."""
     from . import external
     external.download()          # pinned, hash-checked; does nothing when already present
-    key = (config.LEARNED_SEEDS, config.LEARNED_STRIDE, config.LEARNED_TREES,
+    key = (FEATURE_VERSION, config.LEARNED_LEVEL, config.LEARNED_NOISES, config.LEARNED_MEMBERS,
+           bench_key(),
+           config.LEARNED_SEEDS, config.LEARNED_STRIDE, config.LEARNED_TREES,
            config.EXT_BALL_NOISE_M, config.EXT_CONTROL_MIN_S, tuple(external.match_ids()),
            # bench version: 2 = referees excluded, players degraded
            3, config.EXT_LINE_HIDE_M, config.EXT_LINE_HIDE_P, config.EXT_GOAL_GAPS_PER_MIN,
@@ -271,13 +517,14 @@ def default_model(rebuild=False):
             with open(path, "rb") as handle:
                 saved_key, parts = pickle.load(handle)
             if saved_key == key and isinstance(parts, dict):
-                return Model(parts["classifier"], parts["names"], parts["log_prior"])
+                return Model(parts["classifiers"], parts["names"], parts["log_prior"],
+                             parts["level"])
         except Exception:          # unreadable or old-format cache: train again
             pass
     model = train(external.match_ids(), control_min_s=config.LEARNED_CONTROL_MIN_S)
     with open(path, "wb") as handle:
-        pickle.dump((key, {"classifier": model.classifier, "names": model.names,
-                           "log_prior": model.log_prior}), handle)
+        pickle.dump((key, {"classifiers": model.classifiers, "names": model.names,
+                           "log_prior": model.log_prior, "level": model.level}), handle)
     return model
 
 
@@ -316,7 +563,7 @@ def _log_odds(model, arrays):
     if key not in _MEMO:
         if len(_MEMO) > 32:
             _MEMO.clear()
-        _MEMO[key] = (model, arrays["ball"], arrays["slots"], model.log_odds(features(arrays)))
+        _MEMO[key] = (model, arrays["ball"], arrays["slots"], model.log_odds(model.featurize(arrays)))
         # (the key ignores play_mask: one arrays object is always used with the same mask)
     return _MEMO[key][3]
 
