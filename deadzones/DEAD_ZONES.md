@@ -9,13 +9,13 @@ match's 25 fps / 199,319 frame constants from `games.py`.
 The supplied XML has been copied into `data/tactical/`. To reproduce the analysis:
 
 ```sh
-python3 dead_zones.py --public-gt evaluation/gt/BAR-ATH_possession_gt_public.csv
+python3 -m deadzones.dead_zones --public-gt evaluation/gt/BAR-ATH_possession_gt_public.csv
 ```
 
 Or specify an XML path and output folder:
 
 ```sh
-python3 dead_zones.py /path/to/smart_tagging.xml --out data/dead_zones
+python3 -m deadzones.dead_zones /path/to/smart_tagging.xml --out data/dead_zones
 ```
 
 Read `data/dead_zones/report.md` first. `intervals.csv` gives the pairs, source IDs,
@@ -57,7 +57,7 @@ previous half's final whistle or labeling halftime as play.
 ## Apply it to possession predictions
 
 ```sh
-python3 dead_zones.py \
+python3 -m deadzones.dead_zones \
   --overlay evaluation/results/baseline_smooth125.csv \
   --public-gt evaluation/gt/BAR-ATH_possession_gt_public.csv
 python3 evaluation/validate_submission.py data/dead_zones/overlaid.csv
@@ -81,7 +81,7 @@ Policies:
 For direct use in the existing tracking pipeline:
 
 ```python
-from dead_zones import load_events, infer, dead_mask, overlay_labels
+from deadzones.dead_zones import load_events, infer, dead_mask, overlay_labels
 
 analysis = infer(load_events("data/tactical/BAR-ATH_tactical_smart_tagging.xml"))
 mask = dead_mask(analysis)  # list[bool], indexed by zero-based tactical video frame
@@ -96,7 +96,7 @@ must first be mapped to tactical video frames. All exported intervals are
 ## Validation and next source of accuracy
 
 ```sh
-python3 -m unittest discover -s tests -v
+python3 -m unittest deadzones.test_dead_zones deadzones.test_tracking_dead_zones deadzones.test_stoppage_episodes deadzones.test_restart_detection -v
 ```
 
 Tests cover uncertain boundaries, ambiguous matches, missing metadata,
@@ -119,7 +119,9 @@ directory. Existing possession code is unchanged.
 
 ## Which remaining frames are certain?
 
-Run the separate evidence audit:
+The archived evidence audit refers to `audit_dead_zones.py`, whose source is
+currently missing from this checkout. Its outputs below are historical; this
+command cannot currently be reproduced:
 
 ```sh
 python3 audit_dead_zones.py --public-gt evaluation/gt/BAR-ATH_possession_gt_public.csv
