@@ -28,6 +28,7 @@ from games import GAME, half_video_blocks  # noqa: E402
 
 VARIANTS = {
     "base": {},
+    "v6": {"learned": False, "_settings": {"MIN_POSSESSION": 100}},
     "restarts": {"restarts": True},
     "ballfree": {"ballfree": True},
     "zone": {"zone": True},
@@ -51,6 +52,18 @@ VARIANTS = {
     "l-dead": {"learneddead": True},
     "l-team": {"learnedteam": True},
     "l-blend": {"learnedblend": True},
+    "learned-2s": {"learned": True, "_settings": {"LEARNED_CONTROL_MIN_S": 2.0}},
+    "learned-1s": {"learned": True, "_settings": {"LEARNED_CONTROL_MIN_S": 1.0}},
+    "l-blend-2s": {"learnedblend": True, "_settings": {"LEARNED_CONTROL_MIN_S": 2.0}},
+    "l-blend-1s": {"learnedblend": True, "_settings": {"LEARNED_CONTROL_MIN_S": 1.0}},
+    "learned-1s-p75": {"learned": True,
+                       "_settings": {"LEARNED_CONTROL_MIN_S": 1.0, "MIN_POSSESSION": 75}},
+    "learned-1s-p50": {"learned": True,
+                       "_settings": {"LEARNED_CONTROL_MIN_S": 1.0, "MIN_POSSESSION": 50}},
+    "l-blend-1s-p75": {"learnedblend": True,
+                       "_settings": {"LEARNED_CONTROL_MIN_S": 1.0, "MIN_POSSESSION": 75}},
+    "l-blend-3s-p75": {"learnedblend": True, "_settings": {"MIN_POSSESSION": 75}},
+    "base-p75": {"_settings": {"MIN_POSSESSION": 75}},
     "l-gap": {"learnedgap": True},
     "l-gap-novideo": {"learnedgap": True, "videoball": False},
     "deadparams": {"_settings": config.DEAD_PARAMS},
@@ -68,13 +81,18 @@ VARIANTS = {
 }
 
 
-def mask_ball(ball_array, graded, fraction, seed=0, max_len=30 * config.FPS, blocks=None):
+def mask_ball(ball_array, graded, fraction, seed=0, max_len=30 * config.FPS, blocks=None,
+              lengths=None):
     """Copy of the ball array with extra NaN spans covering ~fraction of the observed graded
-    frames, plus the boolean mask of the frames hidden."""
+    frames, plus the boolean mask of the frames hidden.
+
+    lengths: span lengths (frames) to draw from; default the match's own gaps (mostly stoppage
+    gaps, so long -- possession/gate.py passes live-play-like lengths instead)."""
     observed = ~np.isnan(ball_array[:, 0])
     blocks = blocks if blocks is not None else []
-    lengths = probe.gap_lengths(observed, blocks) if blocks else np.array([], dtype=np.int64)
-    lengths = lengths[(lengths > config.MAX_INTERP_GAP) & (lengths <= max_len)]
+    if lengths is None:
+        lengths = probe.gap_lengths(observed, blocks) if blocks else np.array([], dtype=np.int64)
+        lengths = lengths[(lengths > config.MAX_INTERP_GAP) & (lengths <= max_len)]
     if not len(lengths):
         lengths = np.array([2 * config.FPS])
 

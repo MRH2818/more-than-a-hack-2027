@@ -90,7 +90,8 @@ def emissions(arrays, events, graded_mask, blocks, calibrate_zone=False, gap_dea
         # Partial modes keep the hand-made half: "dead" learns only dead-vs-alive, "team" only
         # home-vs-away, "blend" adds the learned evidence to all of the hand-made evidence.
         from . import learned
-        learned_out = learned.emissions(model, arrays, learned_mode)
+        learned_out = learned.emissions(model, dict(arrays, play_mask=graded_mask),
+                                        learned_mode)
         if learned_mode == "teamgap":
             # Learned home-vs-away evidence ONLY where the ATD has no ball; everything else
             # (including the video ball's control evidence in those gaps and the tag priors)

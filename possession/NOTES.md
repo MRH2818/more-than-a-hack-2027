@@ -284,3 +284,72 @@ Round 2 (IDSSE test noise 0.25 / 0.75; BAR-ATH masktest):
   reference too, as cleandead did on 2026-11-07).
 - SEARCH_PARAMS: possessions 246 (< 250), trans 3.36 s -> rejected. Combinations fail phase.
 v6 remains the best model.
+
+## 2026-11-12 (night) — audit: the BAR-ATH checks favoured the hand-made model; fair gate
+Flaws found: (1) masktest hid the ball in live play for spans drawn from ALL real gaps (up to
+30 s, mostly stoppage gaps), so a model that has learned "long gap = stoppage" is penalised;
+real live-play gaps are about 5 s. (2) phase agreement, set-piece alignment and the transition
+yardstick were measured against tags every model also reads (phase tags incl. ATTACKING
+TRANSITION feed team_prior; set pieces feed the dead cue); v6 has no control evidence on 81.5%
+of frames, so tags decide there by construction. Earlier rejections of the learned variants
+rested on these checks and are re-opened.
+`possession/gate.py`, every check uses information withheld from the model: live-length masks
+(lognormal, median 5.4 s, cap 15 s); labels made without phase/set-piece tags then compared
+with them; labels made without the video ball compared with clear video-ball control in ATD
+gaps. Decision rule, written BEFORE the first gate run:
+- IDSSE (real answers) is the primary evidence: candidate must beat v6 by more than the
+  scorer's noise band (0.04 spellF1) on the held-out matches and not lose at 3x noise.
+- BAR-ATH gate: candidate must not be worse than v6 (same gate run) by more than: 3 points on
+  live_hidden_team_agree; 2 points on heldout_phase_agree; 2 points on video_team_agree;
+  3 tags (5.2 points) on heldout_setpiece_dead; 3 tags (6.3 points) on heldout_trans_within_5s.
+  Guardrails as before: possessions 250-400, stoppages 100-220, D share 35-50%.
+- If several pass, prefer the highest IDSSE held-out score.
+
+## 2026-11-13 — first fair-gate run; bench v3; control-rule variants
+Gate (BAR-ATH, model of 2026-11-12, before the speed-scale fix), base / learned / team / blend /
+dead / deadparams: live hidden team 78.4 / 83.1 / 83.9 / 83.0 / 84.9 / 82.8; held-out phase
+agreement 73.6 / 79.1 / 79.2 / 78.5 / 72.2 / 73.6; held-out set piece near D 91.4 / 86.2 / 91.4 /
+87.9 / 87.9 / 89.7; held-out transitions within 5 s 83.3 / 70.8 / 70.8 / 70.8 / 79.2 / 83.3;
+video team agreement 86.0 / 86.6 / 80.9 / 87.6 / 82.7 / 85.6. By the pre-set rule: learned,
+team, blend fail on transitions (-6 tags); dead fails on video (-3.3); deadparams passes the
+gate but not the IDSSE rule. With tags withheld v6's phase agreement falls 82.7 -> 73.6
+(confirms the circularity).
+`learned shift` (feature distributions, BAR-ATH vs degraded IDSSE) found: (a) BUG: relative
+speeds were scaled by the median over ALL frames, on BAR-ATH including warm-up/half-time, so
+play speeds read ~15% high; fixed (play_mask). (b) ball missing 41% vs 32%; (c) observed ball
+line distance p10 2.35 m vs -0.28 m, goal-line distance p10 9.6 vs 4.3 m. Bench v3: stretches
+with the ball within 2 m of a line or outside are hidden with p 0.6 (calibrated: missing 0.408,
+line p10 2.35, goal p10 8.7, oob 0.010 vs BAR-ATH 0.41 / 2.35 / 9.6 / 0.016).
+Bench v3, held-out matches, seed 1, spellF1 vs answers under 3 s / 2 s / 1 s control rule /
+3 s at 3x noise: v6 0.576 / 0.560 / 0.506 / 0.516; learned trained 3 s 0.725 / 0.661 / 0.556 /
+0.643; trained 2 s 0.712 / 0.666 / 0.576 / 0.637; trained 1 s 0.717 / 0.683 / 0.591 / 0.624;
+blends within 0.015 of the corresponding full model.
+
+## 2026-11-13 — learned evidence adopted -> v7
+Second gate run (model retrained on bench v3, speed-scale bug fixed), base / learned 3 s /
+blend 3 s: live hidden team 78.4 / 84.9 / 85.1; held-out phase 73.6 / 78.7 / 78.3; held-out set
+piece 91.4 / 87.9 / 93.1; held-out transitions within 5 s 83.3 / 66.7 / 70.8 (fail); video team
+86.0 / 86.7 / 86.7. Training with a 2 s or 1 s control rule alone did not recover the transitions.
+Turnover timing against REAL answers (IDSSE held-out, 3 s answers, 417 turnovers): v6 within 5 s
+80.8%, median |offset| 1.32 s; learned 3 s-trained 75.8%, 0.84 s; learned 1 s-trained 85.1%,
+0.84 s. So the learned model is not late; the 3 s-trained one under-switches.
+Decoder scan for the 1 s-trained model (tune matches, leave-one-out): switch cost irrelevant;
+MIN_POSSESSION 100 / 75 / 50 -> 0.730 / 0.708 / 0.678 vs 3 s answers and 0.609 / 0.627 / 0.628
+vs 1 s answers.
+Third gate run, base (v6) / learned 1 s MIN_POSSESSION 75 / blend 1 s 75: live hidden team
+78.4 / 82.1 / 80.5; held-out phase 73.6 / 74.2 / 74.1; held-out set piece 91.4 / 89.7 / 93.1;
+held-out transitions within 5 s 83.3 / 79.2 / 79.2 (-2 tags, tolerance 3); video team 86.0 /
+88.2 / 88.3; possessions 279 / 329 / 323; stoppages 140 / 145 / 146; D share 45.6 / 42.6 / 43.6.
+Both pass every pre-set gate criterion.
+IDSSE held-out (bench v3, seed 1; 3 s / 2 s / 1 s answers / 3x noise / seed 7):
+v6 0.576 / 0.560 / 0.506 / 0.516 / 0.546 (macroF1 0.838);
+learned 1 s MIN_POSSESSION 75: 0.702 / 0.692 / 0.615 / 0.606 / 0.681 (macroF1 0.908);
+blend 1 s 75: 0.698 / 0.688 / 0.616 / 0.600 / 0.680. Gains +0.09 to +0.14, above the 0.04 band
+in every column. Pre-set tie-break (highest IDSSE held-out) -> full learned.
+ADOPTED as v7: USE_LEARNED True, LEARNED_CONTROL_MIN_S 1.0, MIN_POSSESSION 75; video ball,
+tag priors and set-piece cue as in v6. masktest/gate variant "v6" reproduces the old model.
+Transparency: MIN_POSSESSION 75 was picked among IDSSE-near-equivalent settings because it
+passes the BAR-ATH gate (automatic tags, no ground truth); the transition tolerance (3 tags)
+was fixed before the gate existed. Public window not consulted for any of this.
+Public-window sanity rule for v7, set before looking: it is a pipeline-correctness check only;
+v7 is kept unless the look reveals a defect (e.g. score below the baselines, misaligned frames).

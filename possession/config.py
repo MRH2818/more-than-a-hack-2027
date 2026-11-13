@@ -94,7 +94,7 @@ TAG_AWAY_NAMES = ("atletic club", "athletic club")
 # possession count goes from ~half of the truth to ~the truth. No BAR-ATH answers involved.
 # Reading: switching team is fairly cheap, but a possession must last 4 s ("keeps the ball for
 # a few seconds", CHALLENGE.md) and leaving a stoppage needs more evidence than entering one.
-MIN_POSSESSION = 100
+MIN_POSSESSION = 75   # v7 (2026-11-13): 3 s; was 100 for the hand-made evidence (v5/v6)
 MIN_DEAD = 25
 SWITCH_TURNOVER = 2.0
 SWITCH_TO_DEAD = 4.0
@@ -290,6 +290,18 @@ EXT_PLAYER_MISSING_GAP = 0.18
 EXT_PLAYER_DROP_MEDIAN_S = 4.0
 EXT_PLAYER_DROP_SIGMA = 0.8
 EXT_DEGRADE_PLAYERS = True
+# Where the ball goes missing (`python -m possession.learned shift`, BAR-ATH graded frames,
+# aggregates): the ATD has no ball on 41% of frames (degraded IDSSE had 32%); where it has one,
+# its distance to the nearest line has p10 2.35 m (IDSSE -0.28 m: its ball is tracked off the
+# pitch) and to the nearest goal line p10 9.6 m (IDSSE 4.3 m); only 1.6% of frames show the ball
+# more than 1 m outside. So, in the IDSSE copies: (1) each stretch with the ball within
+# EXT_LINE_HIDE_M of a line or outside is hidden with probability EXT_LINE_HIDE_P; (2) extra
+# gaps start in live play, preferring positions near a goal line (weight exp(-d / scale)).
+# Values set by `python -m possession.external calibrate` to match those four numbers.
+EXT_LINE_HIDE_M = 2.0
+EXT_LINE_HIDE_P = 0.6   # calibrated: missing 0.408, line p10 2.35, goal p10 8.7, oob 0.010
+EXT_GOAL_GAPS_PER_MIN = 0.0
+EXT_GOAL_GAP_SCALE_M = 10.0
 
 # Converting other games' answers to THIS challenge's definition before tuning. CHALLENGE.md: a
 # change of possession needs *controlled* possession ("a player keeps the ball for a few
@@ -305,12 +317,13 @@ EXT_CONTROL_MIN_S = 3.0
 # Gradient-boosted P(H/A/D | tracking features), trained only on the IDSSE matches (other games,
 # degraded to look like BAR-ATH, answers in the challenge definition). Off until it passes the
 # IDSSE held-out test and the BAR-ATH checks; see NOTES.md.
-USE_LEARNED = False
+USE_LEARNED = True     # adopted 2026-11-13 (v7): IDSSE held-out + fair BAR-ATH gate, NOTES.md
 USE_LEARNED_GAP = False    # learned home-vs-away evidence only where the ATD has no ball
 LEARNED_WEIGHT = 1.0       # emissions = weight * (log P(class|x) - log P(class))
 LEARNED_SEEDS = (10, 11)   # degradation seeds for training copies (evaluation uses seed 1)
 LEARNED_STRIDE = 4         # every 4th frame: neighbouring frames are near-duplicates
 LEARNED_TREES = 200
+LEARNED_CONTROL_MIN_S = 1.0    # answers' control rule for TRAINING (scoring still uses EXT_CONTROL_MIN_S)
 LEARNED_VIDEO_LL = 1.0     # weight of hand soft-control evidence from the video ball in ATD gaps
 
 # Candidate settings from the IDSSE clue-parameter search (2026-11-12, corrected bench, 4 tune

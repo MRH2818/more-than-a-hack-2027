@@ -257,6 +257,28 @@ def degrade(arrays, answers, blocks, noise_m, seed=0):
             start = int(rng.choice(frames))
             seconds = config.EXT_LIVE_GAP_MEDIAN_S * np.exp(config.EXT_LIVE_GAP_SIGMA * rng.randn())
             hide[start:min(last + 1, start + int(seconds * config.FPS))] = True
+    if config.EXT_LINE_HIDE_P > 0 or config.EXT_GOAL_GAPS_PER_MIN > 0:
+        length_m, width_m = (float(v) for v in pitch)
+        x, y = arrays["ball"][:, 0] * length_m, arrays["ball"][:, 1] * width_m
+        with np.errstate(invalid="ignore"):
+            line = np.minimum(np.minimum(x, length_m - x), np.minimum(y, width_m - y))
+            goal = np.minimum(x, length_m - x)
+            near = line < config.EXT_LINE_HIDE_M
+        for start, stop in runs_of(near):
+            if rng.rand() < config.EXT_LINE_HIDE_P:
+                hide[start:stop] = True
+        for _, first, last in blocks:
+            frames = np.flatnonzero(live[first:last + 1] & np.isfinite(goal[first:last + 1])) + first
+            if not len(frames):
+                continue
+            weight = np.exp(-np.maximum(goal[frames], 0.0) / config.EXT_GOAL_GAP_SCALE_M)
+            minutes = len(frames) / float(config.FPS) / 60.0
+            count = rng.poisson(config.EXT_GOAL_GAPS_PER_MIN * minutes)
+            starts = rng.choice(frames, size=count, p=weight / weight.sum()) if count else []
+            for start in starts:
+                seconds = config.EXT_LIVE_GAP_MEDIAN_S * np.exp(
+                    config.EXT_LIVE_GAP_SIGMA * rng.randn())
+                hide[start:min(last + 1, start + int(seconds * config.FPS))] = True
     ball[hide] = np.nan
     out = dict(arrays, ball=ball)
     if config.EXT_DEGRADE_PLAYERS:
@@ -283,6 +305,42 @@ def degrade_players(slots, ball_missing, rng):
         np.add.at(drop, np.minimum(n, starts + np.maximum(1, lengths.astype(int))), -1)
         out[np.cumsum(drop[:n]) > 0, s] = np.nan
     return out
+
+
+def ball_stats(arrays):
+    """The aggregates the degradation is calibrated to (same definitions as learned.shift)."""
+    from . import ball as ball_mod
+    pitch = tuple(float(v) for v in arrays["pitch"])
+    track = ball_mod.track(arrays["ball"], pitch)
+    known = track["known"]
+    xy = track["xy"]
+    goal = np.minimum(xy[:, 0], pitch[0] - xy[:, 0])
+    line = track["line_distance"]
+    return {"missing": float(np.mean(~known)),
+            "line_p10": float(np.percentile(line[known], 10)),
+            "goal_p10": float(np.percentile(goal[known], 10)),
+            "oob": float(np.mean(track["oob"]))}
+
+
+def calibrate(matches=("J03WMX", "J03WOY"), seed=10):
+    """Grid over the line-hiding probability and the goal-area gap rate; prints the four
+    aggregates against BAR-ATH's (missing 0.41, line p10 2.35, goal p10 9.6, oob 0.016)."""
+    saved = (config.EXT_LINE_HIDE_P, config.EXT_GOAL_GAPS_PER_MIN)
+    loaded = [load(match) for match in matches]
+    print("target: missing 0.410  line_p10 2.35  goal_p10 9.60  oob 0.016")
+    try:
+        for hide_p in (0.0, 0.5, 0.7, 0.8, 0.9, 1.0):
+            for rate in (0.0, 0.5, 1.0, 1.5, 2.0, 3.0):
+                config.EXT_LINE_HIDE_P, config.EXT_GOAL_GAPS_PER_MIN = hide_p, rate
+                rows = [ball_stats(degrade(a, ans, b, config.EXT_BALL_NOISE_M, seed))
+                        for a, ans, b in loaded]
+                mean = {k: np.mean([r[k] for r in rows]) for k in rows[0]}
+                print("hide_p {:.1f} goal_gaps/min {:.1f}:  missing {:.3f}  line_p10 {:5.2f}  "
+                      "goal_p10 {:5.2f}  oob {:.3f}".format(hide_p, rate, mean["missing"],
+                                                            mean["line_p10"], mean["goal_p10"],
+                                                            mean["oob"]), flush=True)
+    finally:
+        config.EXT_LINE_HIDE_P, config.EXT_GOAL_GAPS_PER_MIN = saved
 
 
 def near_mode(arrays):
@@ -435,6 +493,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     sub = parser.add_subparsers(dest="command", required=True)
     sub.add_parser("download")
+    sub.add_parser("calibrate")
     sub.add_parser("convert")
     p_score = sub.add_parser("score")
     p_score.add_argument("--raw", action="store_true", help="score on the clean tracking")
@@ -459,6 +518,9 @@ def main():
                  control_min_s=args.control_min)
         else:
             tune(noise)
+        return
+    if args.command == "calibrate":
+        calibrate()
         return
     if args.command == "download":
         download()

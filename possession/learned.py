@@ -112,7 +112,12 @@ def _features(arrays):
     dist = np.hypot(px - xy[:, None, 0], py - xy[:, None, 1])
     all_speed = np.nanmean(np.where(np.isfinite(pspeed), pspeed, np.nan), axis=1) \
         if np.isfinite(pspeed).any() else np.full(n, np.nan)
-    scale = np.nanmedian(_window_mean(all_speed, 25, 25))
+    # Speeds are relative to the match's own median DURING PLAY. arrays["play_mask"] (the graded
+    # halves) keeps warm-up, half-time and post-match frames out of that median; without it the
+    # median is over every frame (other games' arrays hold the two halves only).
+    play = arrays.get("play_mask")
+    windowed = _window_mean(all_speed, 25, 25)
+    scale = np.nanmedian(windowed[play] if play is not None and play.any() else windowed)
     scale = scale if np.isfinite(scale) and scale > 0 else 1.0
     rel_speed = all_speed / scale
     for half_window in (25, 75, 150):
@@ -240,27 +245,31 @@ def train(matches, seeds=None, stride=None, noise=None, control_min_s=None):
     return Model(classifier, names, np.log(prior))
 
 
-def model_path():
-    return os.path.join(config.CACHE_DIR, "learned_model.pkl")
+def model_path(key=None):
+    """Cache file for the model trained with settings `key` (one file per setting)."""
+    import hashlib
+    tag = hashlib.sha256(repr(key).encode()).hexdigest()[:10] if key is not None else "default"
+    return os.path.join(config.CACHE_DIR, "learned_model_{}.pkl".format(tag))
 
 
 def default_model(rebuild=False):
     """The model used on BAR-ATH: trained on all IDSSE matches, cached under cache/."""
     from . import external
     external.download()          # pinned, hash-checked; does nothing when already present
-    path = model_path()
     key = (config.LEARNED_SEEDS, config.LEARNED_STRIDE, config.LEARNED_TREES,
            config.EXT_BALL_NOISE_M, config.EXT_CONTROL_MIN_S, tuple(external.match_ids()),
            # bench version: 2 = referees excluded, players degraded
-           2, config.EXT_DEGRADE_PLAYERS, config.EXT_PLAYER_MISSING_SEEN,
+           3, config.EXT_LINE_HIDE_M, config.EXT_LINE_HIDE_P, config.EXT_GOAL_GAPS_PER_MIN,
+           config.EXT_GOAL_GAP_SCALE_M, config.LEARNED_CONTROL_MIN_S, config.EXT_DEGRADE_PLAYERS, config.EXT_PLAYER_MISSING_SEEN,
            config.EXT_PLAYER_MISSING_GAP, config.EXT_PLAYER_DROP_MEDIAN_S,
            config.EXT_PLAYER_DROP_SIGMA)
+    path = model_path(key)
     if not rebuild and os.path.exists(path):
         with open(path, "rb") as handle:
             saved_key, model = pickle.load(handle)
         if saved_key == key:
             return model
-    model = train(external.match_ids())
+    model = train(external.match_ids(), control_min_s=config.LEARNED_CONTROL_MIN_S)
     with open(path, "wb") as handle:
         pickle.dump((key, model), handle)
     return model
@@ -302,6 +311,7 @@ def _log_odds(model, arrays):
         if len(_MEMO) > 32:
             _MEMO.clear()
         _MEMO[key] = (model, arrays["ball"], arrays["slots"], model.log_odds(features(arrays)))
+        # (the key ignores play_mask: one arrays object is always used with the same mask)
     return _MEMO[key][3]
 
 
@@ -384,16 +394,65 @@ def tune(run, rounds=2, search=None):
     return current
 
 
+def _feature_summary(f, mask):
+    out = {}
+    for name, values in f.items():
+        v = np.asarray(values, dtype=np.float64)[mask]
+        finite = v[np.isfinite(v)]
+        q = np.percentile(finite, [10, 25, 50, 75, 90]) if len(finite) else np.full(5, np.nan)
+        out[name] = (float(np.mean(~np.isfinite(v))), q)
+    return out
+
+
+def shift():
+    """How each feature's distribution on BAR-ATH (graded frames) differs from the degraded
+    IDSSE copies the model is trained on. Aggregates only (quantiles and missing rates)."""
+    import sys
+    from . import external, io_atd
+    sys.path.insert(0, config.ROOT)
+    from games import GAME, half_video_blocks
+    arrays = io_atd.load()
+    mask = np.zeros(arrays["slots"].shape[0], dtype=bool)
+    for _, first, last in half_video_blocks(GAME):
+        mask[first:last + 1] = True
+    ours = _feature_summary(features(dict(arrays, play_mask=mask)), mask)
+    theirs = []
+    for match, (degraded, answers, _) in external.prepared(
+            external.TUNE_MATCHES, config.EXT_BALL_NOISE_M, seed=config.LEARNED_SEEDS[0]).items():
+        theirs.append(_feature_summary(features(degraded), np.ones(len(answers), dtype=bool)))
+    rows = []
+    for name, (nan_ours, q_ours) in ours.items():
+        nan_theirs = float(np.mean([t[name][0] for t in theirs]))
+        q_theirs = np.nanmean([t[name][1] for t in theirs], axis=0)
+        spread = max(q_theirs[3] - q_theirs[1], 1e-6)            # IDSSE interquartile range
+        score = float(np.nanmax(np.abs(q_ours - q_theirs)) / spread) if np.isfinite(
+            q_ours).any() else float("nan")
+        rows.append((score + 5.0 * abs(nan_ours - nan_theirs), name, nan_ours, nan_theirs,
+                     q_ours, q_theirs))
+    rows.sort(key=lambda r: -r[0] if np.isfinite(r[0]) else 0.0)
+    print("{:<30} {:>6} {:>13}  {:<30} {:<30}".format(
+        "feature", "shift", "missing o/t", "BAR-ATH p10/p50/p90", "IDSSE p10/p50/p90"))
+    for score, name, nan_o, nan_t, q_o, q_t in rows:
+        print("{:<30} {:>6.2f} {:>6.2f}/{:<6.2f}  {:<30} {:<30}".format(
+            name, score, nan_o, nan_t,
+            str([round(float(v), 2) for v in q_o[[0, 2, 4]]]),
+            str([round(float(v), 2) for v in q_t[[0, 2, 4]]])))
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     sub = parser.add_subparsers(dest="command", required=True)
     sub.add_parser("crossval")
     sub.add_parser("tune")
+    sub.add_parser("shift")
     sub.add_parser("train")
     args = parser.parse_args()
+    if args.command == "shift":
+        shift()
+        return
     if args.command == "train":
         default_model(rebuild=True)
-        print("wrote", model_path())
+        print("trained and cached under", config.CACHE_DIR)
         return
     from . import external
     run = crossval()
