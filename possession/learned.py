@@ -265,13 +265,19 @@ def default_model(rebuild=False):
            config.EXT_PLAYER_DROP_SIGMA)
     path = model_path(key)
     if not rebuild and os.path.exists(path):
-        with open(path, "rb") as handle:
-            saved_key, model = pickle.load(handle)
-        if saved_key == key:
-            return model
+        # The file holds plain parts, never the Model class itself: a pickled class remembers
+        # the module it was defined in, which is "__main__" under `python -m possession.learned`.
+        try:
+            with open(path, "rb") as handle:
+                saved_key, parts = pickle.load(handle)
+            if saved_key == key and isinstance(parts, dict):
+                return Model(parts["classifier"], parts["names"], parts["log_prior"])
+        except Exception:          # unreadable or old-format cache: train again
+            pass
     model = train(external.match_ids(), control_min_s=config.LEARNED_CONTROL_MIN_S)
     with open(path, "wb") as handle:
-        pickle.dump((key, model), handle)
+        pickle.dump((key, {"classifier": model.classifier, "names": model.names,
+                           "log_prior": model.log_prior}), handle)
     return model
 
 

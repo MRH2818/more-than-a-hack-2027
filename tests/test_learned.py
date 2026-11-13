@@ -141,6 +141,33 @@ class LearnedPipelineTests(unittest.TestCase):
         self.assertGreater(np.mean(labels == answers), 0.9)
         self.assertTrue(set(np.unique(labels)) <= {"H", "A", "D"})
 
+    def test_cached_model_round_trips_and_survives_a_bad_cache(self):
+        import pickle
+        import tempfile
+        from unittest import mock
+        from possession import config, external
+        toy = fit_toy_model()
+        arrays, _ = toy_match(n=1500, seed=3)
+        expected = toy.log_odds(learned.features(arrays))
+        with tempfile.TemporaryDirectory() as folder, \
+                mock.patch.object(config, "CACHE_DIR", folder), \
+                mock.patch.object(external, "download", lambda: None), \
+                mock.patch.object(external, "match_ids", lambda: ["toy"]), \
+                mock.patch.object(learned, "train", lambda *a, **k: toy) as _:
+            first = learned.default_model()
+            files = os.listdir(folder)
+            self.assertEqual(len(files), 1)
+            with open(os.path.join(folder, files[0]), "rb") as handle:
+                _, parts = pickle.load(handle)
+            self.assertIsInstance(parts, dict)               # plain parts, not the Model class
+            again = learned.default_model()                    # loaded from the file
+            np.testing.assert_array_equal(again.log_odds(learned.features(arrays)), expected)
+            with open(os.path.join(folder, files[0]), "wb") as handle:
+                handle.write(b"not a pickle")
+            recovered = learned.default_model()                # bad cache -> trains again
+            np.testing.assert_array_equal(recovered.log_odds(learned.features(arrays)), expected)
+            self.assertIsNotNone(first)
+
     def test_off_by_default_never_trains(self):
         arrays, answers = toy_match(n=3000)
         labels, parts = pipeline.label(arrays, events=[], blocks=[(1, 0, len(answers) - 1)],
