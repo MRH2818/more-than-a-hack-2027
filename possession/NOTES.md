@@ -410,3 +410,12 @@ better on transitions, worse on set pieces (2-3 tags) and on video agreement (1.
 and they call less dead ball, which is the direction of v7's one known caution (D recall in
 the public window). v7 stays the submission. Level-2 features, robust training and Metrica
 training stay in the code, off by default.
+Dead vs live as a two-class question (frame accuracy / D precision / D recall), models trained
+on the 4 tune matches. IDSSE held-out: v6 0.937 / 0.962 / 0.900; v7 0.983 / 0.982 / 0.982; v8
+recipe 0.985 / 0.985 / 0.983 (true D share 46.3%). Metrica (raw answers): v6 0.929 / 0.869 /
+0.955; v7 0.961 / 0.934 / 0.963; v8 recipe 0.961 / 0.941 / 0.956 (true D share 37.4%).
+Caveat: these are optimistic for BAR-ATH. The bench hides the ball in most stoppages by
+construction (and Metrica's D is defined by a missing ball), so "ball missing" is a cleaner
+dead-ball cue there than it may be in the provided game, where the public window (sanity
+only) showed D recall 0.37 for v7. Not acted on: there is no permitted way to tune this.
+Technical document drafted: possession/TECHNICAL.md.
