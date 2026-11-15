@@ -1,4 +1,4 @@
-# What's on the `alex-v7` branch
+# What's on the `alex-v8` branch
 
 The current pipeline, **v8**, is the one we plan to submit. The write-up for the organisers is
 `possession/TECHNICAL.md`. The full decision log, with every number and every rejected idea, is
