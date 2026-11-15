@@ -453,3 +453,12 @@ all. hybrid-metrica is equal or better on every check except video team (-0.1 pt
 2535 frames) and is +0.016 on the IDSSE held-out mean (below the 0.04 band). By the rule
 written beforehand it does not qualify on its own; adoption would be a disclosed judgement
 call. Pending the user's decision.
+
+## 2026-11-15 — v8 adopted (hybrid with Metrica in the team model): user's decision
+Config default: LEARNED_TEAM_SETTINGS = V8_TEAM_SETTINGS + LEARNED_USE_METRICA. Gate variant
+"v7" reproduces the previous model. Full match: 317 possessions (2.99/min), 147 stoppages,
+D 42.6%, valid file (possession_v8.csv), identical to the gate's counts.
+Public window (sanity only, rule set beforehand: no choosing on it): v8 spellF1 0.478, macroF1
+0.713, 19 possessions vs 17 true, D recall 0.37; v7 0.514 / 0.712 / 18; v6 0.489 / 0.783 / 19.
+One matched possession fewer than v7 (10 vs 11 at IoU 0.5); the scoreboard states gaps below
+~0.36 are within noise here. No defect -> v8 kept.
