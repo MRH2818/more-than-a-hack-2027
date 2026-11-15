@@ -462,3 +462,6 @@ Public window (sanity only, rule set beforehand: no choosing on it): v8 spellF1 
 0.713, 19 possessions vs 17 true, D recall 0.37; v7 0.514 / 0.712 / 18; v6 0.489 / 0.783 / 19.
 One matched possession fewer than v7 (10 vs 11 at IoU 0.5); the scoreboard states gaps below
 ~0.36 are within noise here. No defect -> v8 kept.
+Reproducibility of v8 (2026-11-15): both models retrained from scratch (`learned train`), ATD
+cache rebuilt, CSV byte-identical to possession_v8.csv (video detections reused). Same machine
+only; a second machine is still untested.
