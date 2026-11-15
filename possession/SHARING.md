@@ -1,57 +1,59 @@
-# What's on the `alex-v6` branch
+# What's on the `alex-v7` branch
 
-The current best pipeline, **v6**, is the model to beat. It comes with two tools you can reuse
-in your own models. The full decision log, with every number and every rejected idea, is in
+The current pipeline, **v8**, is the one we plan to submit. The write-up for the organisers is
+`possession/TECHNICAL.md`. The full decision log, with every number and every rejected idea, is
 `possession/NOTES.md`.
 
 No data, caches, detections, model weights or CSVs are in this branch. Everything is regenerated
 from your own local copy of the competition data in `data/`.
 
-## Current scores (v6, 2026-11-11)
+## What v8 is
+
+- **Evidence from two small learned models** (gradient-boosted trees), trained only on other
+  matches: 7 Bundesliga matches (IDSSE) and Metrica's 3 public sample matches. One model decides
+  dead ball versus live, the other decides which team has it.
+- **The same decoder as v6**, which turns per-frame evidence into whole possessions.
+- **The video ball and the Smart Tagging cues from v6** are kept on top.
+
+## Current scores (v8, 2026-11-15)
 
 spellF1 runs from 0 to 1, and 1 is perfect. It's the metric the leaderboard ranks on.
 
-| Test | v6 | Baseline | What it tells us |
-|---|---|---|---|
-| Public 5-minute window | spellF1 **0.489**, macroF1 0.783 | smooth50 0.326, smooth125 0.424 | Sanity check only: just 17 possessions, so it's noisy (bootstrap 0.33–0.64). Never tune on it. |
-| IDSSE, 7 Bundesliga matches | spellF1 **0.615**, macroF1 0.874 | smooth50 about 0.32* | Main yardstick for comparing models. Measured on v5: these matches have no video, so v6 behaves exactly like v5 here. |
-| Hidden-ball test on our match (`masktest`) | team correct on hidden frames **77.2%** (v5: 65.6%) | — | The evidence that the video ball helps. Hides real ball stretches and checks the labels there. |
-| Full match (the real leaderboard) | unknown until graded | smooth50 **0.2433** (the official floor) | Our guess is about 0.4–0.55. That's an estimate, not a measurement. |
+| Test | v6 | v7 | v8 | What it tells us |
+|---|---|---|---|---|
+| Bundesliga held-out matches, strict answers | 0.576 | 0.702 | **0.715** | Main yardstick: 3 full matches the models never saw. |
+| Bundesliga held-out, loose answers | 0.506 | 0.615 | **0.634** | Same, with a looser reading of "control". |
+| Bundesliga held-out, 3× noisier ball | 0.516 | 0.606 | **0.621** | Same, with worse ball tracking. |
+| Public 5-minute window | 0.489 | 0.514 | 0.478 | Sanity check only: 17 possessions, so these three are the same within noise. Never tune or choose on it. |
+| Full match (the real leaderboard) | unknown | unknown | unknown | The official floor is smooth50 at 0.2433. |
 
-\*The IDSSE baseline was scored on the raw DFL answers, not the converted ones, so it's only a
-rough comparison.
-
-**Other facts about v6**
-- On the full match it finds 279 possessions and 140 stoppages, and labels 45.6% of graded
+**Other facts about v8**
+- On the full match it finds 317 possessions and 147 stoppages, and labels 42.6% of graded
   frames as dead ball.
 - The video ball fills 38% of the frames where the tracking has no ball.
-- Reproducibility was checked on 2026-11-11: the rerun gave byte-identical detections and a
-  byte-identical CSV.
 
 **Known weak spots**
-- Dead-ball recall is only about 55%.
-- Turnovers are often called a little late: 37.5% of transition tags fall within 2 s.
-- The video ball covers only 38% of the ball gaps.
+- Dead-ball recall in the public window is only 37%, although it is 96-98% on the other
+  matches. We could not explain the difference.
+- Turnovers are called a little late: withheld transition tags are matched after a median 2.7 s.
+- The step from v7 to v8 is small (+0.016) and below the scorer's 0.04 noise band.
 
-**To beat v6**, score your model on the IDSSE held-out matches. If it touches video or our own
-match, also check it with `masktest`.
-
-## 1. Regenerate v6 (one command, about 2.5 h on Apple Silicon)
+## 1. Regenerate v8 (one command, about 2.5 h on Apple Silicon the first time)
 
 ```bash
 pip install -r requirements.txt -r possession/requirements-video.txt
-python -m possession.run --out evaluation/results/possession_v6.csv
-python evaluation/validate_submission.py evaluation/results/possession_v6.csv
+python -m possession.run --out evaluation/results/possession_v8.csv
+python evaluation/validate_submission.py evaluation/results/possession_v8.csv
 ```
 
 - **Most of the time goes on video ball detection** (YOLO11s on every graded frame, about
   20 frames/s on MPS).
 - **Keep the laptop plugged in with the lid open.** If it sleeps, the run can stall.
 - **Detection checkpoints every 2000 frames** and resumes if you stop it.
-- **The weights are downloaded once**, and their sha256 is checked.
-- **The output is deterministic.** Reruns were byte-identical, for both the detections and the CSV.
-
-The scores are in the table above.
+- **The first run also downloads the public training matches and the detector weights**
+  (pinned versions, hashes checked) and trains the two models, which takes a few minutes.
+- **The output is deterministic** on one machine. If you can, run it on yours and tell us
+  whether your CSV is byte-identical to ours: a second machine has not been tested.
 
 ## 2. Video ball detection (fills the gaps in the provided ball track)
 
@@ -98,7 +100,8 @@ This lets you compare ideas without touching the public 5 minutes.
 
 ```bash
 python -m unittest tests.test_pipeline tests.test_improvements tests.test_videotrack tests.test_io_atd tests.test_audio
-# 53 synthetic tests, no match data needed, about 30 s
+# add tests.test_learned tests.test_gate for the learned models: 75 synthetic tests in all,
+# no match data needed, about 45 s
 ```
 
 ## Rules we followed (please keep to them)
