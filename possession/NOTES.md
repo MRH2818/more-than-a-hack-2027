@@ -438,3 +438,10 @@ adopted. `probe restarts` added (label-free ball-seen share around set-piece tag
 counterpart: ball seen in true stoppages 17.9% at the default rates, 58.7% with no hiding.
 Kickoff: the FAQ's second-half kickoff frame is NOT used; games.py calls the anchors
 "observations about the video", and RULES.md bans human-produced data about the game.
+`probe restarts` on BAR-ATH (58 set-piece tags, each 35 s long): ball seen 59.3% of graded
+frames; relative to the tag start, 25-37% in the 10 s before, 34-36% in the first 3 s, 50% at
+3-6 s, 76-83% from 6 s on (so the restart falls about 3-6 s after the tag start). By type:
+corners 0-8% before, goal kicks 47-61%, throw-ins 32-56%, free kicks 1-20%. Bench: 19-20%
+before a true restart at the default hiding rates, 34-35% at (0.25, 0.45), then 86-94% after.
+BAR-ATH sits between those two settings, and v7 is flat across them, so the stoppage hiding is
+realistic enough and stays as calibrated. The public-window D recall remains unexplained.
