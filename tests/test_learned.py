@@ -154,6 +154,28 @@ class SymmetryTests(unittest.TestCase):
         np.testing.assert_allclose(direct, mirror[:, [1, 0, 2]], atol=1e-9)
 
 
+class HybridTests(unittest.TestCase):
+    def test_hybrid_of_a_model_with_itself_is_that_model(self):
+        model = fit_toy_model()
+        arrays, _ = toy_match(n=1500, seed=4)
+        hybrid = learned.Hybrid(model, model)
+        np.testing.assert_allclose(hybrid.log_odds(hybrid.featurize(arrays)),
+                                   model.log_odds(model.featurize(arrays)), atol=1e-9)
+
+    def test_dead_probability_comes_from_the_dead_model(self):
+        model = fit_toy_model()
+        other = learned.Model(model.classifiers, model.names, model.log_prior)
+        other.log_odds = lambda f: model.log_odds(f)[:, [1, 0, 2]] * 0.5   # a different team view
+        arrays, _ = toy_match(n=1500, seed=4)
+        hybrid = learned.Hybrid(model, other)
+        got = hybrid.log_odds(hybrid.featurize(arrays))
+        want = model.log_odds(model.featurize(arrays))
+        np.testing.assert_allclose(got[:, 2], want[:, 2], atol=1e-9)
+        alive = lambda lo: np.logaddexp(lo[:, 0] + model.log_prior[0], lo[:, 1] + model.log_prior[1])
+        np.testing.assert_allclose(alive(got), alive(want), atol=1e-9)
+        self.assertFalse(np.allclose(got[:, :2], want[:, :2]))
+
+
 class PlayerDegradeTests(unittest.TestCase):
     def test_dropouts_follow_ball_state_and_are_seeded(self):
         from possession import config, external

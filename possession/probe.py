@@ -134,8 +134,76 @@ def gap_model():
         len(covered), np.mean(covered > 0.5), np.mean(covered >= 0.99)))
 
 
+OFFSETS_S = (-20, -15, -10, -6, -3, -1, 0, 1, 3, 6, 10, 15)
+
+
+def visibility_profile(observed, anchors, valid):
+    """Share of frames with a ball in bins of time relative to the anchors (aggregate over all
+    anchors). Bins are [OFFSETS_S[i], OFFSETS_S[i+1]) seconds; frames outside `valid` skipped."""
+    out = []
+    for low, high in zip(OFFSETS_S[:-1], OFFSETS_S[1:]):
+        seen = total = 0
+        for anchor in anchors:
+            a, b = anchor + low * config.FPS, anchor + high * config.FPS
+            a, b = max(0, a), min(len(observed), b)
+            if b > a:
+                seen += int((observed[a:b] & valid[a:b]).sum())
+                total += int(valid[a:b].sum())
+        out.append(seen / float(total) if total else float("nan"))
+    return out
+
+
+def print_profile(name, count, profile):
+    print("{:<34} n={:<4} ".format(name, count) + "  ".join(
+        "[{:+d},{:+d})s {:.0%}".format(low, high, value)
+        for low, high, value in zip(OFFSETS_S[:-1], OFFSETS_S[1:], profile)))
+
+
+def restart_visibility():
+    """Label-free: how often the tracking has a ball around each automatic set-piece tag. Used
+    to check that other games' stoppages are degraded realistically (the first calibration
+    used our own predicted stoppages, which is circular). Aggregates only."""
+    from . import tagging
+    arrays = io_atd.load()
+    n = arrays["slots"].shape[0]
+    blocks = half_video_blocks(GAME)
+    graded = graded_mask(n, blocks)
+    observed = ball_mod.track(arrays["ball"], tuple(arrays["pitch"]))["observed"]
+    events = [e for e in tagging.load_events()
+              if (e["code"] or "").strip().upper() == "SET PIECES"
+              and 0 <= e["start_frame"] < n and graded[e["start_frame"]]]
+    print("ball seen, all graded frames: {:.1%}".format(observed[graded].mean()))
+    durations = np.array([e["end_frame"] - e["start_frame"] for e in events]) / float(config.FPS)
+    if len(durations):
+        print("set-piece tags {}: tag length s p10/p50/p90 {}".format(
+            len(events), np.round(np.percentile(durations, [10, 50, 90]), 1).tolist()))
+    by_type = {}
+    for e in events:
+        kind = (e["tags"].get("Type") or "?").strip().lower()
+        by_type.setdefault(kind, []).append(e)
+    print("ball-seen share by time relative to the tag START:")
+    print_profile("all set pieces", len(events),
+                  visibility_profile(observed, [e["start_frame"] for e in events], graded))
+    for kind, group in sorted(by_type.items(), key=lambda item: -len(item[1])):
+        if len(group) >= 5:
+            print_profile(kind, len(group),
+                          visibility_profile(observed, [e["start_frame"] for e in group], graded))
+    print("ball-seen share by time relative to the tag END:")
+    print_profile("all set pieces", len(events),
+                  visibility_profile(observed, [e["end_frame"] for e in events], graded))
+    inside = np.zeros(n, dtype=bool)
+    for e in events:
+        inside[max(0, e["start_frame"]):min(n, e["end_frame"])] = True
+    inside &= graded
+    if inside.any():
+        print("ball seen inside set-piece tags: {:.1%} of {} frames".format(
+            observed[inside].mean(), int(inside.sum())))
+
+
 if __name__ == "__main__":
     if len(sys.argv) > 1 and sys.argv[1] == "gaps":
         gap_model()
+    elif len(sys.argv) > 1 and sys.argv[1] == "restarts":
+        restart_visibility()
     else:
         main()

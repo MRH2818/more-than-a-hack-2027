@@ -419,3 +419,22 @@ construction (and Metrica's D is defined by a missing ball), so "ball missing" i
 dead-ball cue there than it may be in the provided game, where the public window (sanity
 only) showed D recall 0.37 for v7. Not acted on: there is no permitted way to tune this.
 Technical document drafted: possession/TECHNICAL.md.
+
+## 2026-11-15 (later) — hybrid model and stoppage-hiding sensitivity
+Hybrid (`learned.Hybrid`, `LEARNED_TEAM_SETTINGS`): dead-vs-live from v7, home-vs-away from the
+v8 recipe. IDSSE held-out (3 s / 1 s / 3x noise, mean): v7 0.702 / 0.615 / 0.606 (0.641);
+hybrid 0.706 / 0.619 / 0.609 (0.645); hybrid with the Metrica matches in the team model's
+training 0.715 / 0.634 / 0.621 (0.657). Metrica (raw / 1 s): v7 0.600 / 0.658; hybrid
+0.608 / 0.667. Most of v8's gain at 3x noise came from its dead-ball half, so the hybrid keeps
+little of it. Below the 0.04 band; not adopted unless the BAR-ATH gate shows no loss anywhere.
+Stoppage hiding: EXT_DEAD_FULL / EXT_DEAD_MOSTLY were calibrated on our own predicted
+stoppages (circular: `probe gaps`). Sensitivity on the IDSSE held-out matches, re-degraded with
+(full, mostly) = (0.536, 0.732) / (0.25, 0.45) / (0, 0.2) / (0, 0): v6 0.576 / 0.584 / 0.559 /
+0.557; v7 0.702 / 0.690 / 0.680 / 0.681 with D recall 0.98 and precision 0.98-0.99 in every
+column; training on a mix of 2 / 3 / 4 hiding rates 0.698 / 0.700 / 0.692 in the first column
+and within 0.01 of v7 elsewhere. So v7 does not depend on the ball being hidden in stoppages,
+and the hiding rate does not explain the low D recall in the public window. Mix training not
+adopted. `probe restarts` added (label-free ball-seen share around set-piece tags); bench
+counterpart: ball seen in true stoppages 17.9% at the default rates, 58.7% with no hiding.
+Kickoff: the FAQ's second-half kickoff frame is NOT used; games.py calls the anchors
+"observations about the video", and RULES.md bans human-produced data about the game.

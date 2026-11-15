@@ -496,8 +496,49 @@ def model_path(key=None):
     return os.path.join(config.CACHE_DIR, "learned_model_{}.pkl".format(tag))
 
 
+class Hybrid:
+    """Dead-versus-live from one model, home-versus-away (given live) from another.
+
+    Lets a model with better turnover timing supply the team split without changing which
+    frames are called dead. Same interface as Model."""
+
+    def __init__(self, dead_model, team_model):
+        self.dead_model, self.team_model = dead_model, team_model
+        self.log_prior = dead_model.log_prior
+        self.level = max(dead_model.level, team_model.level)
+
+    def featurize(self, arrays):
+        return self.dead_model.featurize(arrays), self.team_model.featurize(arrays)
+
+    def log_odds(self, f):
+        dead = self.dead_model.log_odds(f[0]) + self.dead_model.log_prior
+        team = self.team_model.log_odds(f[1]) + self.team_model.log_prior
+        alive = np.logaddexp(dead[:, 0], dead[:, 1])
+        split = team[:, :2] - np.logaddexp(team[:, 0], team[:, 1])[:, None]
+        log_p = np.column_stack([alive + split[:, 0], alive + split[:, 1], dead[:, 2]])
+        return log_p - self.log_prior
+
+
 def default_model(rebuild=False):
-    """The model used on BAR-ATH: trained on all IDSSE matches, cached under cache/."""
+    """The model used on BAR-ATH. With config.LEARNED_TEAM_SETTINGS, a Hybrid whose team split
+    comes from a second model trained with those config overrides."""
+    model = _cached_model(rebuild)
+    overrides = config.LEARNED_TEAM_SETTINGS
+    if not overrides:
+        return model
+    saved = {name: getattr(config, name) for name in overrides}
+    try:
+        for name, value in overrides.items():
+            setattr(config, name, value)
+        team_model = _cached_model(rebuild)
+    finally:
+        for name, value in saved.items():
+            setattr(config, name, value)
+    return Hybrid(model, team_model)
+
+
+def _cached_model(rebuild=False):
+    """One model for the current config: trained on all IDSSE matches, cached under cache/."""
     from . import external
     external.download()          # pinned, hash-checked; does nothing when already present
     matches = tuple(external.match_ids())
