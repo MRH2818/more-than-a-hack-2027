@@ -29,6 +29,13 @@ from games import GAME, half_video_blocks  # noqa: E402
 VARIANTS = {
     "base": {},
     "v6": {"learned": False, "_settings": {"MIN_POSSESSION": 100}},
+    "v8-recipe": {"_settings": {"LEARNED_LEVEL": 2, "LEARNED_NOISES": (0.25, 0.5),
+                                "LEARNED_SEEDS": (10, 11, 12, 13)}},
+    "v8-metrica": {"_settings": {"LEARNED_LEVEL": 2, "LEARNED_NOISES": (0.25, 0.5),
+                                 "LEARNED_SEEDS": (10, 11, 12, 13),
+                                 "LEARNED_USE_METRICA": True}},
+    "v7-metrica": {"_settings": {"LEARNED_USE_METRICA": True}},
+    "v7-level2": {"_settings": {"LEARNED_LEVEL": 2}},
     "restarts": {"restarts": True},
     "ballfree": {"ballfree": True},
     "zone": {"zone": True},

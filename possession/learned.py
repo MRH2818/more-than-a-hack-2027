@@ -500,7 +500,13 @@ def default_model(rebuild=False):
     """The model used on BAR-ATH: trained on all IDSSE matches, cached under cache/."""
     from . import external
     external.download()          # pinned, hash-checked; does nothing when already present
+    matches = tuple(external.match_ids())
+    if config.LEARNED_USE_METRICA:
+        from . import metrica
+        metrica.download()       # pinned commit, hash-checked
+        matches += metrica.MATCHES
     key = (FEATURE_VERSION, config.LEARNED_LEVEL, config.LEARNED_NOISES, config.LEARNED_MEMBERS,
+           matches,
            bench_key(),
            config.LEARNED_SEEDS, config.LEARNED_STRIDE, config.LEARNED_TREES,
            config.EXT_BALL_NOISE_M, config.EXT_CONTROL_MIN_S, tuple(external.match_ids()),
@@ -521,7 +527,7 @@ def default_model(rebuild=False):
                              parts["level"])
         except Exception:          # unreadable or old-format cache: train again
             pass
-    model = train(external.match_ids(), control_min_s=config.LEARNED_CONTROL_MIN_S)
+    model = train(matches, control_min_s=config.LEARNED_CONTROL_MIN_S)
     with open(path, "wb") as handle:
         pickle.dump((key, {"classifiers": model.classifiers, "names": model.names,
                            "log_prior": model.log_prior, "level": model.level}), handle)

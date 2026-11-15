@@ -25,7 +25,18 @@ from . import config
 
 FOLDER = os.path.join(config.CACHE_DIR, "external", "metrica")
 URL = "https://raw.githubusercontent.com/metrica-sports/sample-data/{}/data/Sample_Game_{}/{}"
-REVISION = "master"
+REVISION = "e706dd506b360d69d9d123d5b8026e7294b13996"      # pinned commit (2021-04-15)
+SHA16 = {                                                    # first 16 hex digits of sha256
+    "Sample_Game_1_RawEventsData.csv": "097dda6345e17390",
+    "Sample_Game_1_RawTrackingData_Away_Team.csv": "0a3df68a92af0290",
+    "Sample_Game_1_RawTrackingData_Home_Team.csv": "0a3d0eff77859503",
+    "Sample_Game_2_RawEventsData.csv": "edf31a18599265b7",
+    "Sample_Game_2_RawTrackingData_Away_Team.csv": "aa639f40762eade4",
+    "Sample_Game_2_RawTrackingData_Home_Team.csv": "3f9990ac204b0713",
+    "Sample_Game_3_events.json": "28a53bfe9eaf3253",
+    "Sample_Game_3_metadata.xml": "009c7dcfcb661920",
+    "Sample_Game_3_tracking.txt": "570e6ce82c2d93bc",
+}
 PITCH = (105.0, 68.0)
 ON_BALL = ("PASS", "SHOT", "RECOVERY", "SET PIECE", "BALL LOST")
 FILES = {
@@ -52,6 +63,11 @@ def download(folder=FOLDER):
                     open(path + ".part", "wb") as handle:
                 shutil.copyfileobj(response, handle, 1 << 20)
             os.replace(path + ".part", path)
+    from .external import _sha_prefix
+    for name, expected in SHA16.items():
+        if _sha_prefix(os.path.join(folder, name)) != expected:
+            raise IOError("{} does not match the pinned Metrica sample file; delete it and "
+                          "rerun".format(name))
 
 
 def _speeds(xy_norm):

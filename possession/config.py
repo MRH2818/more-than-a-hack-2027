@@ -326,6 +326,7 @@ LEARNED_TREES = 200
 LEARNED_LEVEL = 1          # feature set: 1 = v7; 2 adds last/next controller, ball turns, context
 LEARNED_NOISES = (EXT_BALL_NOISE_M,)   # ball-noise levels pooled for training
 LEARNED_MEMBERS = 1        # classifiers averaged (deterministic bagging when > 1)
+LEARNED_USE_METRICA = False  # also train on Metrica's three public sample matches
 LEARNED_CONTROL_MIN_S = 1.0    # answers' control rule for TRAINING (scoring still uses EXT_CONTROL_MIN_S)
 LEARNED_VIDEO_LL = 1.0     # weight of hand soft-control evidence from the video ball in ATD gaps
 

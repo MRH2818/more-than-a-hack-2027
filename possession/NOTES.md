@@ -384,3 +384,29 @@ Error breakdown of v7 (tune folds, 3 s answers, 926 true possessions): matched I
 0.5-0.7 17%; 0.3-0.5 11%; given to the other team 10% (median 4.2 s); swallowed / split /
 called dead 4%. Dead ball is not the bench bottleneck; boundary precision and short
 possessions are.
+
+## 2026-11-15 — v8 candidates: confirmed on held-out data, gated on BAR-ATH, NOT adopted
+Recipe: level-2 features + noise mix (0.25, 0.5) + seeds (10, 11, 12, 13); optionally the three
+Metrica sample matches added to training (`LEARNED_USE_METRICA`, download pinned and hashed).
+IDSSE held-out matches, models trained on the 4 tune matches (3 s / 1 s / 3x noise, mean):
+v7 0.702 / 0.615 / 0.606 (0.641); v8 recipe 0.710 / 0.617 / 0.647 (0.658); v7 + Metrica
+0.704 / 0.613 / 0.615 (0.644); v8 recipe + Metrica 0.711 / 0.631 / 0.653 (0.665). macroF1
+0.908-0.909 for all.
+Metrica, each match scored by a model that did not see it (raw events / 1 s rule): v7
+0.600 / 0.658; v8 recipe 0.615 / 0.675; v7 + other two Metrica 0.607 / 0.665; v8 recipe + other
+two Metrica 0.622 / 0.683.
+Fair gate on BAR-ATH (`gate.py`; base = v7 / v8-recipe / v8-metrica / v7-metrica / v7-level2):
+- live hidden team agree 82.1 / 83.1 / 81.5 / 80.2 / 81.5
+- held-out phase agree 74.2 / 74.3 / 75.4 / 74.9 / 74.6
+- held-out set piece dead 89.7 / 86.2 / 84.5 / 89.7 / 86.2
+- held-out transitions within 5 s 79.2 / 83.3 / 83.3 / 75.0 / 83.3 (median 3.6 / 3.12 / 2.68 /
+  3.28 / 3.28 s)
+- video team agree 88.2 / 86.4 / 86.6 / 86.5 / 86.3
+- possessions 329 / 309 / 302 / 326 / 322; stoppages 145 / 129 / 121 / 145 / 134; D share
+  42.6 / 40.4 / 40.0 / 42.1 / 40.7 %.
+Decision by the rule written before the runs: the IDSSE held-out gain is +0.017 to +0.024,
+below the 0.04 noise band, so no candidate qualifies. On BAR-ATH the candidates are mixed:
+better on transitions, worse on set pieces (2-3 tags) and on video agreement (1.6-1.8 pts),
+and they call less dead ball, which is the direction of v7's one known caution (D recall in
+the public window). v7 stays the submission. Level-2 features, robust training and Metrica
+training stay in the code, off by default.
