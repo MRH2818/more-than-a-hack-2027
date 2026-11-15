@@ -445,3 +445,11 @@ corners 0-8% before, goal kicks 47-61%, throw-ins 32-56%, free kicks 1-20%. Benc
 before a true restart at the default hiding rates, 34-35% at (0.25, 0.45), then 86-94% after.
 BAR-ATH sits between those two settings, and v7 is flat across them, so the stoppage hiding is
 realistic enough and stays as calibrated. The public-window D recall remains unexplained.
+Fair gate on BAR-ATH, base (v7) / hybrid / hybrid-metrica: live hidden team 82.1 / 83.1 / 82.2;
+held-out phase 74.2 / 74.4 / 75.3; set piece dead 89.7 / 91.4 / 89.7; transitions within 2 s
+37.5 / 41.7 / 41.7, within 5 s 79.2 / 83.3 / 79.2, median 3.6 / 3.12 / 2.68 s; video team
+88.2 / 86.5 / 88.1; possessions 329 / 318 / 317; stoppages 145 / 146 / 147; D share 42.6 in
+all. hybrid-metrica is equal or better on every check except video team (-0.1 pt, about 3 of
+2535 frames) and is +0.016 on the IDSSE held-out mean (below the 0.04 band). By the rule
+written beforehand it does not qualify on its own; adoption would be a disclosed judgement
+call. Pending the user's decision.
