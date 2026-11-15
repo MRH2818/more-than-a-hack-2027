@@ -329,9 +329,10 @@ LEARNED_MEMBERS = 1        # classifiers averaged (deterministic bagging when > 
 LEARNED_USE_METRICA = False  # also train on Metrica's three public sample matches
 # Hybrid: dead-versus-live from the model above, home-versus-away from a second model trained
 # with these config overrides (None = one model for everything). See learned.Hybrid.
-LEARNED_TEAM_SETTINGS = None
 V8_TEAM_SETTINGS = {"LEARNED_LEVEL": 2, "LEARNED_NOISES": (0.25, 0.5),
                     "LEARNED_SEEDS": (10, 11, 12, 13)}
+# v8 (adopted 2026-11-15, NOTES.md): the team model also trains on the Metrica sample matches.
+LEARNED_TEAM_SETTINGS = dict(V8_TEAM_SETTINGS, LEARNED_USE_METRICA=True)
 LEARNED_CONTROL_MIN_S = 1.0    # answers' control rule for TRAINING (scoring still uses EXT_CONTROL_MIN_S)
 LEARNED_VIDEO_LL = 1.0     # weight of hand soft-control evidence from the video ball in ATD gaps
 

@@ -18,6 +18,7 @@ NOWHERE = os.path.join(ROOT, "tests", "_no_such_dir")
 config.USE_VIDEO_BALL = False
 config.USE_WHISTLE = False
 config.USE_LEARNED = False
+config.LEARNED_TEAM_SETTINGS = None
 config.VIDEO_DETECTIONS = os.path.join(NOWHERE, "detections.npz")
 config.CACHE_DIR = NOWHERE
 

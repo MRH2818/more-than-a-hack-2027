@@ -235,6 +235,32 @@ class LearnedPipelineTests(unittest.TestCase):
             np.testing.assert_array_equal(recovered.log_odds(learned.features(arrays)), expected)
             self.assertIsNotNone(first)
 
+    def test_default_model_is_a_hybrid_when_team_settings_are_given(self):
+        import tempfile
+        from unittest import mock
+        from possession import config, external
+        toy = fit_toy_model()
+        seen = []
+
+        def fake_train(*args, **kwargs):
+            seen.append(config.LEARNED_SEEDS)
+            return toy
+
+        with tempfile.TemporaryDirectory() as folder, \
+                mock.patch.object(config, "CACHE_DIR", folder), \
+                mock.patch.object(config, "LEARNED_TEAM_SETTINGS", {"LEARNED_SEEDS": (1, 2, 3)}), \
+                mock.patch.object(external, "download", lambda: None), \
+                mock.patch.object(external, "match_ids", lambda: ["toy"]), \
+                mock.patch.object(learned, "train", fake_train):
+            before = config.LEARNED_SEEDS
+            model = learned.default_model()
+            self.assertIsInstance(model, learned.Hybrid)
+            self.assertEqual(seen, [before, (1, 2, 3)])
+            self.assertEqual(config.LEARNED_SEEDS, before)       # overrides restored
+            self.assertEqual(len(os.listdir(folder)), 2)         # one cache file per model
+            self.assertIsInstance(learned.default_model(), learned.Hybrid)
+            self.assertEqual(len(seen), 2)                       # second call came from cache
+
     def test_off_by_default_never_trains(self):
         arrays, answers = toy_match(n=3000)
         labels, parts = pipeline.label(arrays, events=[], blocks=[(1, 0, len(answers) - 1)],
