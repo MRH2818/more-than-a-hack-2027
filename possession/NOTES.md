@@ -484,3 +484,5 @@ v9 full match (2026-11-15): 315 possessions (2.97/min), 145 stoppages, D 42.8%, 
 (possession_v9.csv); exactly 204 frames differ from v8, all H -> D. Reproducibility: both
 models retrained from scratch, ATD cache rebuilt, CSV byte-identical (video detections reused;
 same machine only).
+Public window (sanity only): v9 identical to v8 in every figure (spellF1 0.478, macroF1 0.713,
+19 possessions); no goal stretch falls inside the window.

@@ -17,7 +17,7 @@ more than one wrong frame at its edge. We therefore split the problem in two:
 
 We never write `X` on a graded frame.
 
-**Evidence (v8).** Gradient-boosted tree classifiers (scikit-learn
+**Evidence.** Gradient-boosted tree classifiers (scikit-learn
 `HistGradientBoostingClassifier`, 200 trees, fixed seed) predict H / A / D from features of
 the tracking data only: distance from the ball to the nearest player of each team, who is
 clearly closest, ball speed and position, distance to the lines, how long the ball has been
@@ -100,7 +100,7 @@ the challenge definition, not something we could verify.
 
 Other matches, real answers, models that never saw the test matches (spellF1):
 
-| Test | Hand-written rules (v6) | One classifier (v7) | Submitted (v8) |
+| Test | Hand-written rules (v6) | One classifier (v7) | Submitted (v9) |
 |---|---|---|---|
 | Bundesliga held-out, 3 s control rule | 0.576 | 0.702 | 0.715 |
 | Bundesliga held-out, 1 s control rule | 0.506 | 0.615 | 0.634 |
@@ -110,14 +110,14 @@ Other matches, real answers, models that never saw the test matches (spellF1):
 
 \*Measured with the home-versus-away classifier trained without any Metrica match.
 
-The step from v7 to v8 (+0.016 on average) is below the scorer's stated noise band of 0.04. We
+The step from v7 to the submitted evidence models (+0.016 on average) is below the scorer's stated noise band of 0.04. We
 adopted it as a judgement call because it was ahead in every test above and equal or better on
 the checks below.
 
 Provided game, checks that need no ground truth (each one hides something from the model and
 measures how well the labels recover it):
 
-| Check | v6 | v7 | v8 |
+| Check | v6 | v7 | v9 |
 |---|---|---|---|
 | Ball hidden for live-play-length spans: team unchanged | 78.4% | 82.1% | 82.2% |
 | Phase tags withheld: labels agree with them | 73.6% | 74.2% | 75.3% |
@@ -126,14 +126,14 @@ measures how well the labels recover it):
 | Transition tags withheld: median delay | — | 3.6 s | 2.7 s |
 | Video ball withheld: agrees with clear video-ball control | 86.0% | 88.2% | 88.1% |
 
-On the full match the submission (v8 plus the goal rule above) finds 315 possessions (3.0 per
+On the full match the submission (v9) finds 315 possessions (3.0 per
 minute) and 145 stoppages, and labels 42.8% of graded frames dead. The checks in the table are
 identical with and without the goal rule.
 
 ## 6. How we used the public 5 minutes
 
 Only as a pass/fail sanity check after a version had already been chosen on other data; never
-to choose between versions or set a parameter. For transparency, the submitted v8 scores
+to choose between versions or set a parameter. For transparency, the submitted v9 scores
 spellF1 0.478 and macroF1 0.713 there (19 possessions found, 17 true); v7 scored 0.514 and v6
 0.489. With 17 possessions these differ by one matched possession, and the scorer itself
 reports that gaps below about 0.36 are within noise in this window, so we did not let it
@@ -142,7 +142,7 @@ overrule the tests on other matches.
 ## 7. Limitations
 
 - **Dead ball may be under-called.** In the public window v7 marked only 37% of the truly dead
-  frames as dead (v6: 55%), and v8 uses the same dead-ball classifier. On the other matches dead-versus-live frame accuracy is 98%
+  frames as dead (v6: 55%), and v9 uses the same dead-ball classifier (37% there too). On the other matches dead-versus-live frame accuracy is 98%
   (Bundesliga held-out) and 96% (Metrica), but those tests are optimistic: our degraded copies
   hide the ball in most stoppages by construction, so a missing ball is a cleaner dead-ball cue
   there than in the provided game. The dead-ball convention of the training data may also
