@@ -480,3 +480,7 @@ check identical (the held-out checks withhold the goal tags, so they cannot diff
 possessions 317 / 315, stoppages 147 / 145, D share 42.6 / 42.8. Adopted -> v9
 (USE_GOAL_DEAD = True; gate variant "v8" turns it off). Justified by the Laws of the Game, not
 by a score: no test here can measure 2 possessions.
+v9 full match (2026-11-15): 315 possessions (2.97/min), 145 stoppages, D 42.8%, valid file
+(possession_v9.csv); exactly 204 frames differ from v8, all H -> D. Reproducibility: both
+models retrained from scratch, ATD cache rebuilt, CSV byte-identical (video detections reused;
+same machine only).
