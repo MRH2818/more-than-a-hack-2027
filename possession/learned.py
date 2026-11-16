@@ -308,8 +308,11 @@ def training_rows(arrays, answers, stride, level=1):
 
 def bench_key():
     """Everything that changes what a degraded IDSSE copy looks like."""
-    return tuple((name, getattr(config, name)) for name in sorted(vars(config))
-                 if name.startswith("EXT_"))
+    key = tuple((name, getattr(config, name)) for name in sorted(vars(config))
+                if name.startswith("EXT_"))
+    if config.STOPPAGE_BALL != "frozen":
+        key += (("STOPPAGE_BALL", config.STOPPAGE_BALL),)
+    return key
 
 
 def _rows_cached(match, seed, noise, control_min_s, stride, level):

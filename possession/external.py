@@ -231,13 +231,96 @@ def correlated_noise(n, sigma, tau, rng):
     return out
 
 
+def simulate_stoppage_ball(arrays, answers, mode, seed=0):
+    """Copy of arrays["ball"] whose stoppage ball moves like a real one.
+
+    Why: in the IDSSE files the ball is FROZEN at one position for the whole of every stoppage
+    (100% of BallStatus 0 frames in all seven matches, then it jumps to the restart spot). A
+    camera-tracked ball never does that: it rolls on, is carried or thrown to the restart spot,
+    and is then placed or held there. A model trained on the frozen ball learns "seen and still
+    = dead, seen and moving = live" with certainty, which does not hold on a real recording.
+
+    Each stoppage gets one of two paths between the last live position and the restart spot
+    (the first live position after it):
+      place  the ball rolls on briefly, is moved to the restart spot at 3-10 m/s and lies there;
+      carry  the ball rolls on briefly, then stays with the player who is nearest the restart
+             spot when play resumes (walking it to the spot), offset by under a metre.
+    mode "mix" picks one of the two per stoppage at random. Own random stream, so the ball
+    noise and the stoppage / live-play gaps are the same as on the frozen bench for the same
+    seed (hiding near the lines and player dropouts follow the new positions and can differ).
+    """
+    from .ball import runs_of
+    rng = np.random.RandomState(1000003 + seed)
+    pitch = np.asarray(arrays["pitch"], dtype=np.float64)
+    ball = arrays["ball"].copy()
+    xy = ball[:, :2] * pitch
+    slots = arrays["slots"]
+    n, fps = len(xy), float(config.FPS)
+    live = np.isin(answers, ("H", "A"))
+
+    def smoothstep(u):
+        u = np.clip(u, 0.0, 1.0)
+        return u * u * (3.0 - 2.0 * u)
+
+    for start, stop in runs_of(answers == "D"):
+        if stop >= n or not live[stop] or np.isnan(xy[stop, 0]):
+            continue                              # no restart to aim for (end of a half)
+        length = stop - start
+        p1 = xy[stop].copy()
+        p0, v0 = p1.copy(), np.zeros(2)
+        if start > 0 and live[start - 1] and not np.isnan(xy[start - 1, 0]):
+            p0 = xy[start - 1].copy()
+            if start > 1 and live[start - 2] and not np.isnan(xy[start - 2, 0]):
+                v0 = (xy[start - 1] - xy[start - 2]) * fps
+                speed = float(np.hypot(v0[0], v0[1]))
+                if speed > 35.0:                  # a jump in the source data, not a velocity
+                    v0 = v0 * (35.0 / speed)
+        t = (np.arange(length) + 1.0) / fps
+        roll_tau = 0.7                            # the ball keeps moving, slowing over ~1 s
+        roll = p0 + v0[None, :] * roll_tau * (1.0 - np.exp(-t / roll_tau))[:, None]
+        kind = mode if mode != "mix" else ("place" if rng.rand() < 0.5 else "carry")
+        seconds = length / fps
+        wait = min(rng.uniform(0.5, 2.0), 0.3 * seconds)
+        dest = None
+        if kind == "carry":
+            px = slots[stop, :, 0] * pitch[0]
+            py = slots[stop, :, 1] * pitch[1]
+            d = np.hypot(px - p1[0], py - p1[1])
+            if np.isfinite(d).any():
+                taker = int(np.nanargmin(d))
+                track = slots[start:stop + 1, taker, :2] * pitch
+                ok = ~np.isnan(track[:, 0])
+                if ok.sum() >= 2:
+                    idx = np.arange(len(track))
+                    track = np.column_stack([np.interp(idx, idx[ok], track[ok, k])
+                                             for k in (0, 1)])[:length]
+                    angle, radius = rng.uniform(0, 2 * np.pi), rng.uniform(0.3, 0.9)
+                    dest = track + radius * np.array([np.cos(angle), np.sin(angle)])
+                    move = min(rng.uniform(1.0, 2.0), 0.5 * seconds)
+                    # hand over to the true restart spot in the last 0.4 s
+                    end = smoothstep((t - (seconds - 0.4)) / 0.4)[:, None]
+                    dest = dest * (1.0 - end) + p1[None, :] * end
+        if dest is None:
+            dest = np.tile(p1, (length, 1))
+            reach = float(np.hypot(*(p1 - roll[-1])))
+            move = min(max(reach / rng.uniform(3.0, 10.0), 1.0), max(0.8 * seconds - wait, 0.04))
+        w = smoothstep((t - wait) / max(move, 1e-6))[:, None]
+        xy[start:stop] = roll * (1.0 - w) + dest * w
+    ball[:, :2] = xy / pitch
+    return ball
+
+
 def degrade(arrays, answers, blocks, noise_m, seed=0):
     """Copy of arrays whose ball looks like BAR-ATH's ATD: correlated position noise, most
     stoppages without a ball, and occasional multi-second gaps in live play."""
     from .ball import runs_of
     rng = np.random.RandomState(seed)
     pitch = arrays["pitch"]
-    ball = arrays["ball"].copy()
+    # The ball before noise and hiding: as recorded (frozen in stoppages), or with a simulated
+    # stoppage path (config.STOPPAGE_BALL, see simulate_stoppage_ball).
+    base = arrays["ball"] if config.STOPPAGE_BALL == "frozen" else \
+        simulate_stoppage_ball(arrays, answers, config.STOPPAGE_BALL, seed)
+    ball = base.copy()
     n = len(ball)
     if noise_m > 0:
         ball[:, :2] += correlated_noise(n, noise_m, config.EXT_NOISE_TAU, rng) / pitch
@@ -262,7 +345,7 @@ def degrade(arrays, answers, blocks, noise_m, seed=0):
             hide[start:min(last + 1, start + int(seconds * config.FPS))] = True
     if config.EXT_LINE_HIDE_P > 0 or config.EXT_GOAL_GAPS_PER_MIN > 0:
         length_m, width_m = (float(v) for v in pitch)
-        x, y = arrays["ball"][:, 0] * length_m, arrays["ball"][:, 1] * width_m
+        x, y = base[:, 0] * length_m, base[:, 1] * width_m
         with np.errstate(invalid="ignore"):
             line = np.minimum(np.minimum(x, length_m - x), np.minimum(y, width_m - y))
             goal = np.minimum(x, length_m - x)
@@ -471,6 +554,48 @@ def tune(noise, rounds=2, search=None, start=None, with_options=False, control_m
     return current, options
 
 
+def stoppage_stats(matches=TUNE_MATCHES, seed=10):
+    """How the SEEN ball moves in the wait before a restart on the degraded copies, for each
+    stoppage-ball mode: the bench counterpart of `python -m possession.probe deadseen`."""
+    from . import ball as ball_mod, evidence
+    from .ball import runs_of
+    saved = config.STOPPAGE_BALL
+    try:
+        for mode in ("frozen", "place", "carry", "mix"):
+            config.STOPPAGE_BALL = mode
+            speeds, dists, seen, total = [], [], 0, 0
+            for match in matches:
+                arrays, answers, blocks = load(match)
+                degraded = degrade(arrays, answers, blocks, config.EXT_BALL_NOISE_M, seed)
+                pitch = tuple(float(v) for v in arrays["pitch"])
+                track = ball_mod.track(degraded["ball"], pitch)
+                d_home, d_away = evidence.team_distances(degraded["slots"], degraded["team"],
+                                                         track["xy"], pitch)
+                nearest = np.fmin(d_home, d_away)
+                wait = np.zeros(len(answers), dtype=bool)
+                for start, stop in runs_of(answers == "D"):
+                    # the tag start falls 3-6 s before the restart: about 12 s to 2 s before it
+                    wait[max(start, stop - 12 * config.FPS):max(start, stop - 2 * config.FPS)] = True
+                mask = wait & track["observed"]
+                seen += int(mask.sum())
+                total += int(wait.sum())
+                speeds.append(track["speed"][mask])
+                dists.append(nearest[mask])
+            speed = np.concatenate(speeds)
+            speed = speed[np.isfinite(speed)]
+            dist = np.concatenate(dists)
+            dist = dist[np.isfinite(dist)]
+            print("{:<7} ball seen in the wait {:.0%}  speed p10/p50/p90 {}  still (<{} m/s) "
+                  "{:.0%}  moving (>={} m/s) {:.0%}  nearest player p50/p90 {}".format(
+                      mode, seen / float(max(total, 1)),
+                      np.round(np.percentile(speed, [10, 50, 90]), 2).tolist(),
+                      config.BALL_STATIONARY_MS, float(np.mean(speed < config.BALL_STATIONARY_MS)),
+                      config.BALL_MOVING_MS, float(np.mean(speed >= config.BALL_MOVING_MS)),
+                      np.round(np.percentile(dist, [50, 90]), 2).tolist()), flush=True)
+    finally:
+        config.STOPPAGE_BALL = saved
+
+
 VARIANTS = {
     "current": {},
     "no-cleandead": {"cleandead": False},
@@ -497,6 +622,7 @@ def main():
     sub = parser.add_subparsers(dest="command", required=True)
     sub.add_parser("download")
     sub.add_parser("calibrate")
+    sub.add_parser("stoppage")
     sub.add_parser("convert")
     p_score = sub.add_parser("score")
     p_score.add_argument("--raw", action="store_true", help="score on the clean tracking")
@@ -524,6 +650,9 @@ def main():
         return
     if args.command == "calibrate":
         calibrate()
+        return
+    if args.command == "stoppage":
+        stoppage_stats()
         return
     if args.command == "download":
         download()

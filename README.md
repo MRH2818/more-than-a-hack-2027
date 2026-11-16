@@ -1,3 +1,34 @@
+# Golden Bear Analytics — More than a Hack 2027, Phase 1 submission
+
+This repository is the **Golden Bear Analytics** entry for the ball-possession challenge. It is
+the organisers' starter repository plus our solution in `possession/`.
+
+| | |
+|---|---|
+| **Technical document** | [`possession/TECHNICAL.md`](possession/TECHNICAL.md) — approach, assets, training data, possession rules, results, limitations |
+| **Code** | [`possession/`](possession/) (pipeline) and [`tests/`](tests/) (synthetic tests, no match data needed) |
+| **Decision log** | [`possession/NOTES.md`](possession/NOTES.md) — every experiment and rejected idea, with its numbers |
+
+**Regenerate the submission file** (Python 3.14; the provided match data unpacked into `data/`
+as described in [DATA.md](DATA.md)):
+
+```bash
+pip install -r requirements.txt -r possession/requirements-video.txt
+python -m possession.run --out Golden_Bear_Analytics.csv
+python evaluation/validate_submission.py Golden_Bear_Analytics.csv
+```
+
+The one command downloads the pinned public training matches and detector weights
+(hash-checked), trains the models with fixed seeds, runs ball detection on the tactical video
+and writes the CSV. The first run takes about 2.5 hours, almost all of it ball detection.
+
+No match data, detections, model weights or label files are in this repository, and none may
+be added: the match assets are licensed for the competition only (see [RULES.md](RULES.md)).
+
+Everything below this line is the organisers' original README.
+
+---
+
 # More than a Hack 2027 — Phase 1: Ball Possession
 
 **Organised by [Metrica Sports](https://metrica-sports.com), [FC Barcelona](https://www.fcbarcelona.com)

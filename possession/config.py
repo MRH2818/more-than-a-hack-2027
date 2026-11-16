@@ -102,7 +102,11 @@ SWITCH_FROM_DEAD = 8.0
 # Boundary snapping: an H<->A switch is moved to the first clean control frame of the new team
 # after the old team's last one (CHALLENGE.md: loose balls stay with the last team), searching
 # this far either side of the decoded boundary.
-SNAP_WINDOW = 4 * FPS
+SNAP_DEFAULT = 4 * FPS
+# v10 (2026-11-15): snapping is OFF (window 0). It was written for the hand-made evidence; with
+# the learned evidence it cost 0.02-0.04 spellF1 in every held-out comparison on the other
+# matches (`python -m possession.stoppagelab bench`). Adopted as a judgement call, NOTES.md.
+SNAP_WINDOW = 0
 
 # -- pre-kickoff stretches -----------------------------------------------------------------------
 # A graded half can start before its kickoff (FAQ.md: the second half does). Rather than type in
@@ -302,6 +306,15 @@ EXT_LINE_HIDE_M = 2.0
 EXT_LINE_HIDE_P = 0.6   # calibrated: missing 0.408, line p10 2.35, goal p10 8.7, oob 0.010
 EXT_GOAL_GAPS_PER_MIN = 0.0
 EXT_GOAL_GAP_SCALE_M = 10.0
+
+# The ball during stoppages in the IDSSE copies. "frozen": as recorded -- the provider parks the
+# ball at one position for the whole of every stoppage (100% of dead frames in all 7 matches),
+# which no camera-tracked ball does. "mix" / "place" / "carry": a simulated path from the last
+# live position to the restart spot (external.simulate_stoppage_ball). Not an EXT_ name on
+# purpose: learned.bench_key adds it only when it is not "frozen", so older caches stay valid.
+# v10 (2026-11-15): "mix" adopted after the label-free checks on the provided game
+# (`probe deadchecks`, `gate`); "frozen" reproduces v9's training data.
+STOPPAGE_BALL = "mix"
 
 # Converting other games' answers to THIS challenge's definition before tuning. CHALLENGE.md: a
 # change of possession needs *controlled* possession ("a player keeps the ball for a few

@@ -486,3 +486,110 @@ models retrained from scratch, ATD cache rebuilt, CSV byte-identical (video dete
 same machine only).
 Public window (sanity only): v9 identical to v8 in every figure (spellF1 0.478, macroF1 0.713,
 19 possessions); no goal stretch falls inside the window.
+
+## 2026-11-15 (late) — the training ball is frozen in stoppages; realistic stoppage ball -> v10
+Finding (IDSSE only, `external.load`): in all 7 matches the ball stands at ONE position for the
+whole of every stoppage (100% of BallStatus 0 frames have zero frame-to-frame movement; one
+distinct position per stoppage; it then jumps a median 6 m to the restart spot; nearest player
+mid-stoppage 3.3-4.5 m away vs 1.1-1.8 m in live play). A camera-tracked ball never does this.
+So wherever the bench leaves the stoppage ball visible (about 20% of dead frames), dead versus
+live is given away by "seen and still, away from players", and "seen and moving" is never dead
+in training. The 98% dead-vs-live frame accuracy reported for v7-v9 is inflated by it, and the
+bench being flat across stoppage hiding rates (2026-11-15) is explained by it.
+Fix (`external.simulate_stoppage_ball`, `config.STOPPAGE_BALL`): per stoppage the ball rolls on
+briefly, then is either moved to the restart spot and lies there ("place") or stays with the
+player nearest the restart spot ("carry"); "mix" picks one per stoppage; "frozen" is the ball
+as recorded. Noise and hiding as before. Tests: tests/test_stoppage.py.
+Held-out matches, the v9 recipe (dead model + level-2 team model with Metrica) trained on the
+tune matches with the frozen ball (= v9) or with "mix"; spellF1 vs 1 s answers
+(`python -m possession.stoppagelab bench`; raw and 3 s answers move the same way):
+
+| test bench | v9 (frozen) | trained on mix | v9, no snap | mix, no snap |
+|---|---|---|---|---|
+| frozen (the old bench) | 0.634 | 0.625 | 0.656 | 0.645 |
+| mix | 0.589 | 0.613 | 0.617 | 0.635 |
+| place | 0.601 | 0.611 | 0.623 | 0.628 |
+| carry | 0.561 | 0.606 | 0.595 | 0.627 |
+| mix, ball seen in 44% of dead frames | 0.558 | 0.598 | 0.576 | 0.616 |
+| mix, 3x ball noise | 0.526 | 0.560 | 0.563 | 0.594 |
+| frozen, 3x ball noise | 0.553 | 0.580 | 0.588 | 0.613 |
+| mix, degradation seed 7 | 0.597 | 0.619 | 0.620 | 0.646 |
+
+Dead-ball frames on "mix": v9 recall 0.898 (0.634 where the ball is seen), 68 possessions
+placed inside true dead time over the 3 matches, macroF1 0.870; trained on mix: recall 0.970
+(0.919 seen), 23 such possessions, macroF1 0.896; precision 0.982 vs 0.971. On "carry" v9's
+seen-ball recall is 0.472, and with 3x noise 0.166 (frozen ball: 0.615).
+Turnover snapping (`SNAP_WINDOW`, written for the hand-made evidence): switching it off is
++0.017 to +0.037 in all 16 rows above and in every single-model run (training rule raw / 0.5 s
+/ 1 s, MIN_POSSESSION 25 / 75). Same matches throughout, so not 16 independent results; each
+is below the 0.04 band.
+Answer definition (`python -m possession.stoppagelab definition`): EVALUATION.md's table for a
+perfect submission 3 / 8 / 25 frames late on the full match is 0.9818 / 0.8933 / 0.6539. The
+public window gives 1.0 / 0.9529 / 0.7765 (the public ground truth shifted against itself), so
+the table is not from the public window, and the full match has shorter possessions than its
+first 5 minutes. Same table on IDSSE answers: raw 0.960 / 0.862 / 0.557; 0.5 s rule
+0.994 / 0.904 / 0.593; 1 s 0.998 / 0.958 / 0.663; 2 s 0.999 / 0.989 / 0.797; 3 s
+0.999 / 0.991 / 0.874. The truth looks like the raw-to-1 s end, so the 3 s column was the
+least representative yardstick and the 1 s column the closest; from here on 1 s is quoted
+first. It changes no setting: training on raw / 0.5 s / 1 s answers and MIN_POSSESSION 25-75
+all land within 0.02 of each other against raw, 0.5 s and 1 s answers.
+
+BAR-ATH, label-free (user ran; aggregates). Rules were written before each run.
+`probe deadseen v9 stoppage-mix` (57 set-piece tags, tags withheld; the wait = 8 s before to
+2 s after the tag start): ball seen in 31% of the wait. Share of the wait called dead where
+the ball is seen / not seen: v9 16% / 97%; mix 32% / 97% (4 s window: 25% -> 51%). The seen
+ball there moves like open play (speed p50 4.25 m/s, 61% at 3 m/s or more, nearest player
+p50 2.06 m; far from any tag: 5.05 m/s, 70%, 1.95 m). Verdict: CONFOUNDED. The window reaches
+back into live play before the ball went out, so "seen" frames mix live and dead; the
+adoption bar (close half the gap) was not met and the probe could not decide.
+`probe deadchecks v9 stoppage-mix` (uses only waits that should be stoppage):
+- goal-to-kickoff stretches, goal rule and tags withheld (11583 frames, ball seen in 3%):
+  dead where the ball is seen 42% -> 63% (301 frames); where not seen 100% both. The seen
+  ball there: speed p50 3.76 m/s, 60% at 3 m/s or more, still 6%: nothing like a frozen ball.
+- 8 s before goal-kick, corner and free-kick tags (27 tags): dead where seen 8% -> 23%
+  (1206 frames; goal kicks 5% -> 23% of 1032, corners 100% of 36, free kicks 8% of 138);
+  where not seen 99% -> 97% (goal kicks 95% -> 87%). Caveat: before goal kicks the ball is
+  seen in 52% of frames and moves like open play, so those windows probably hold live play
+  too; only the goal stretches are certain.
+- open-play guard (ball seen, 5 m inside the lines, no ball gap of 3 s within 10 s, no tag
+  near; 22241 frames): called dead 8% -> 10%. At the pre-set limit (2 points); the set
+  evidently contains real stoppages (untagged free kicks), so it is a weak guard.
+- live stretches with dead ball on both sides, 3-5 s / 5-10 s: v9 36 / 24, mix 22 / 21.
+  Other matches (`stoppagelab islands`): truth 7.0 / 15.4 per match (plus 4.3 under 3 s);
+  the models on the bench 11-18 / 17-22. Not part of the rule (the bench does not separate
+  the models on it), but v9's 36 is well above anything on the bench.
+`gate --variants v9 stoppage-mix nosnap mix-nosnap`:
+
+| check | v9 | mix | v9 no snap | mix no snap |
+|---|---|---|---|---|
+| live hidden team agree | 82.2 | 83.6 | 84.0 | 84.8 |
+| held-out phase agree | 75.3 | 76.4 | 75.7 | 77.3 |
+| held-out set piece dead | 89.7 | 94.8 | 89.7 | 94.8 |
+| held-out transitions within 2 s | 41.7 | 41.7 | 37.5 | 37.5 |
+| held-out transitions within 5 s | 79.2 | 83.3 | 87.5 | 91.7 |
+| held-out transition median s | 2.68 | 3.12 | 3.20 | 3.12 |
+| video team agree | 88.1 | 88.0 | 88.1 | 88.0 |
+| possessions / stoppages / D share | 315 / 145 / 42.8 | 292 / 129 / 45.9 | 315 / 145 / 42.8 | 292 / 129 / 45.9 |
+
+Decision. "mix": the pre-set rule was (a) at least 10 points more of the seen-ball frames
+before slow set pieces called dead: met (+15; goal stretches +21); (b) not more than 2 points
+more of open play called dead: at the limit; (c) gate within the 2026-11-12 tolerances: met on
+every check (worst: video team -0.1). Adopted. No-snap: the rule was "transitions within 5 s
+and median delay not worse"; against mix it is +2 tags within 5 s, equal median, -1 tag within
+2 s (noise by the 2026-11-13 note), and it is +0.02 to +0.04 on the bench, below the band.
+Adopted as a judgement call: USER'S DECISION.
+v10 = STOPPAGE_BALL "mix" + SNAP_WINDOW 0 (config defaults; masktest/gate variant "v9"
+reproduces the previous model). Full match: 292 possessions (2.76/min), 129 stoppages,
+D 45.9%, valid file (possession_v10.csv), identical to the gate's counts.
+Public window (sanity only, rule as before: no choosing on it): v10 spellF1 0.495, macroF1
+0.792, 21 possessions vs 17 true, D recall 0.58 (precision 0.88); v9 0.478 / 0.713 / 19 /
+0.37 (0.78); v7 0.514; v6 0.489. 9 possessions matched at IoU 0.5 (v9 10). No defect -> v10
+kept. The dead-ball recall moved the way the diagnosis predicted; v10 over-splits slightly in
+this window (21 vs 17), not acted on.
+Reproducibility of v10 (2026-11-15): both models retrained from scratch (`learned train`),
+ATD cache rebuilt, CSV byte-identical to possession_v10.csv (video detections reused; same
+machine only).
+Open: the simulated stoppage ball is an assumption. On BAR-ATH the ball seen in certain dead
+time moves far more than the simulated one (60% at 3 m/s or more vs 7% on the "mix" bench), and
+v10 still calls only 23-63% of such frames dead. A stoppage ball modelled on that, and a
+dead-ball model that leans less on ball motion, are the obvious next steps.
