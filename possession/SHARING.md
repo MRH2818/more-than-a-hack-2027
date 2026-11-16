@@ -1,4 +1,4 @@
-# What's on the `alex-v9` branch
+# What's on the `alex-v10` branch
 
 The current pipeline, **v10**, is the one we submit as **Golden Bear Analytics**. The write-up
 for the organisers is `possession/TECHNICAL.md`. The full decision log, with every number and
