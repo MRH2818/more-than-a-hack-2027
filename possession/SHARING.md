@@ -1,4 +1,4 @@
-# What's on the `alex-v8` branch
+# What's on the `alex-v9` branch
 
 The current pipeline, **v9** (v8 plus one dead-ball rule), is the one we plan to submit. The write-up for the organisers is
 `possession/TECHNICAL.md`. The full decision log, with every number and every rejected idea, is
@@ -7,7 +7,7 @@ The current pipeline, **v9** (v8 plus one dead-ball rule), is the one we plan to
 No data, caches, detections, model weights or CSVs are in this branch. Everything is regenerated
 from your own local copy of the competition data in `data/`.
 
-## What v8 is
+## What v9 is
 
 - **Evidence from two small learned models** (gradient-boosted trees), trained only on other
   matches: 7 Bundesliga matches (IDSSE) and Metrica's 3 public sample matches. One model decides
@@ -18,7 +18,7 @@ from your own local copy of the competition data in `data/`.
   idea and pairing rule come from the `deadzones/` work on `main`. It removes two false
   possessions inside goal celebrations and changes nothing else.
 
-## Current scores (v8, 2026-11-15)
+## Current scores (v9, 2026-11-15)
 
 spellF1 runs from 0 to 1, and 1 is perfect. It's the metric the leaderboard ranks on.
 
@@ -30,7 +30,7 @@ spellF1 runs from 0 to 1, and 1 is perfect. It's the metric the leaderboard rank
 | Public 5-minute window | 0.489 | 0.514 | 0.478 | Sanity check only: 17 possessions, so these three are the same within noise. Never tune or choose on it. |
 | Full match (the real leaderboard) | unknown | unknown | unknown | The official floor is smooth50 at 0.2433. |
 
-**Other facts about v8**
+**Other facts about v9**
 - On the full match it finds 315 possessions and 145 stoppages, and labels 42.8% of graded
   frames as dead ball.
 - The video ball fills 38% of the frames where the tracking has no ball.
