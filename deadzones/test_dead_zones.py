@@ -2,7 +2,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from dead_zones import (Config, Event, dead_mask, evaluate_public, infer,
+from deadzones.dead_zones import (Config, Event, dead_mask, evaluate_public, infer,
                         load_events, overlay_labels, read_labels)
 
 

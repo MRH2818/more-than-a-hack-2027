@@ -16,6 +16,12 @@ import pandas as pd
 
 from games import GAME, GAMES, asset_paths, half_video_blocks
 from deadzones.dead_zones import Config, infer, load_events, dead_mask, read_labels
+from deadzones.stoppage_episodes import reconstruct_stoppages
+from deadzones.restart_detection import assign_restart_teams, apply_restart_overlay
+
+
+DEFAULT_OVERLAY_POLICY = "fragments"
+DEFAULT_RESTART_TEAM_POLICY = "local"
 
 
 @dataclass(frozen=True)
@@ -113,7 +119,12 @@ def features(players, ball, meta, geometry):
         warnings.simplefilter("ignore", RuntimeWarning)
         med = np.nanmedian(speed, axis=1)
         p90 = np.nanquantile(speed, .9, axis=1)
-        near = np.nanmin(np.linalg.norm(players[:, :, :2] - ball[:, None, :2], axis=2), axis=1)
+        distances = np.linalg.norm(players[:, :, :2] - ball[:, None, :2], axis=2)
+        distances[~valid] = np.nan
+        near = np.nanmin(distances, axis=1)
+        team_near = [np.nanmin(distances[:, teams == team], axis=1)
+                     if (teams == team).any() else np.full(len(ball), np.nan)
+                     for team in (0, 1)]
     bspeed = np.fmax(motion(ball[:, :2], fps, k), ball[:, 2])
     bvalid = np.isfinite(ball[:, :2]).all(axis=1) & np.isfinite(bspeed) & (bspeed >= 0) & (bspeed <= 45)
     # Also reject each adjacent jump, including reappearance across missing data.
@@ -140,6 +151,7 @@ def features(players, ball, meta, geometry):
                          "ball_x_m": ball[:, 0], "ball_y_m": ball[:, 1],
                          "ball_speed_mps": bspeed, "ball_valid": bvalid,
                          "nearest_player_m": near, "outside_pitch_m": outside,
+                         "nearest_home_m": team_near[0], "nearest_away_m": team_near[1],
                          "kickoff_formation_fraction": shape,
                          "homography_valid": geometry[0] & geometry[2], "homography_error": geometry[1]})
 
@@ -284,7 +296,19 @@ def detect(f, events, meta, p=Params()):
         raise ValueError("Smart-tagging and tracking frame counts disagree")
     goal_resume = sustained(quality & moving & ~calm, max(1, round(.24 * fps))) & original
     resume |= goal_resume
-    combined = (original & ~resume) | supported
+    # Restart detection is shared by both policies. Stricter dead-episode
+    # selection remains experimental until independently evaluated.
+    reconstruction = reconstruct_stoppages(f, events, meta, quality, p)
+    fragment_combined = (original & ~resume) | supported
+    retained_goals = original.copy()
+    for a, b in runs(original):
+        releases = np.flatnonzero(resume[a:b])
+        if len(releases):
+            # Release is a state transition: a subsequent ball occlusion must
+            # not resurrect the old goal celebration override.
+            retained_goals[a + int(releases[0]):b] = False
+    episode_combined = retained_goals | reconstruction["mask"]
+    restart_teams = assign_restart_teams(f, reconstruction["restarts"], meta, quality)
     for row in summaries:
         evidence = [r for r in intervals if r["event_id"] == row["event_id"]]
         selected = [r for r in evidence if r["tier"] == "tracking_supported"]
@@ -295,9 +319,21 @@ def detect(f, events, meta, p=Params()):
         row["rules"] = ";".join(sorted({r["rule"] for r in selected}))
         row["restart_motion_frames"] = ";".join(str(r["restart_motion_frame"]) for r in selected if r["restart_motion_frame"] is not None)
         row["decision"] = "tracking_supported_candidates" if selected else "needs_more_evidence"
+        episodes = [r for r in reconstruction["episodes"] if r["event_id"] == row["event_id"]]
+        episode_mask = np.zeros(n, dtype=bool)
+        for episode in episodes:
+            episode_mask[episode["start_frame"]:episode["end_frame_exclusive"]] = True
+        row["episode_count"] = len(episodes)
+        row["episode_frames"] = int(episode_mask.sum())
+        row["episode_decision"] = "bounded_stoppage" if episodes else "no_bounded_stoppage"
     return {"supported": supported, "setup_review": medium, "idle_review": idle,
             "resume": resume, "scope": scope, "quality": quality, "original": original,
-            "combined": combined, "intervals": intervals, "restarts": summaries,
+            "combined": fragment_combined, "episode_combined": episode_combined,
+            "intervals": intervals, "restarts": summaries,
+            "fragment_combined": fragment_combined, "retained_goals": retained_goals,
+            "episode_mask": reconstruction["mask"], "episodes": reconstruction["episodes"],
+            "episode_review": reconstruction["review"], "episode_params": reconstruction["params"],
+            "restart_detections": reconstruction["restarts"], "restart_teams": restart_teams,
             "params": asdict(p)}
 
 
@@ -314,19 +350,42 @@ def public_metrics(mask, truth):
 
 def export(result, f, meta, args, truth=None, base=None):
     out, fps = args.out, meta["fps"]
-    original, supported, combined = (result[k] for k in ("original", "supported", "combined"))
-    additions = supported & ~original
+    original, supported = (result[k] for k in ("original", "supported"))
+    policy = getattr(args, "overlay_policy", DEFAULT_OVERLAY_POLICY)
+    team_policy = getattr(args, "restart_team_policy", DEFAULT_RESTART_TEAM_POLICY)
+    if policy not in {"fragments", "episodes"} or team_policy not in {"local", "off"}:
+        raise ValueError("Invalid overlay or restart-team policy")
+    combined = result["fragment_combined"] if policy == "fragments" else result["episode_combined"]
+    overlay_mask = combined
+    additions = combined & ~original
+    team_result = result["restart_teams"]
+    applied = np.zeros(len(f), dtype=bool)
     scored = np.zeros(len(f), dtype=bool)
     for _, lo, hi in half_video_blocks(GAME):
         scored[lo:hi + 1] = True
     summary = {"frames": len(f), "fps": fps, "params": result["params"],
+               "episode_params": result["episode_params"],
+               "overlay_policy": policy,
+               "episode_policy_experimental": True,
+               "restart_team_policy": team_policy,
+               "restart_team_params": team_result["params"],
+               "restart_detections": len(result["restart_detections"]),
+               "restart_uncertain_frames": int(team_result["uncertain"].sum()),
+               "restart_team_proposed_frames": int((team_result["labels"] != "X").sum()),
+               "restart_team_conflict_frames": int(team_result["conflict"].sum()),
+               "reconstructed_episode_frames": int(result["episode_mask"].sum()),
+               "reconstructed_episode_count": len(runs(result["episode_mask"])),
+               "tagged_restarts_with_episodes": len({r["event_id"] for r in result["episodes"]}),
+               "episode_frames_beyond_fragments": int((result["episode_mask"] & ~supported).sum()),
+               "fragment_frames_withheld": int((supported & ~result["episode_mask"]).sum()),
+               "unresolved_episode_candidates": len(result["episode_review"]),
                "tracking_supported_frames": int(supported.sum()),
                "new_frames_beyond_tag_only": int(additions.sum()),
                "new_seconds_beyond_tag_only": float(additions.sum() / fps),
                "new_frames_in_scored_periods": int((additions & scored).sum()),
                "new_frames_outside_scored_periods": int((additions & ~scored).sum()),
                "original_goal_frames": int(original.sum()),
-               "original_goal_frames_revoked": int((original & result["resume"]).sum()),
+               "original_goal_frames_revoked": int((original & ~combined).sum()),
                "combined_dead_frames": int(combined.sum()),
                "setup_needs_confirmation_frames": int(result["setup_review"].sum()),
                "idle_only_review_frames": int(result["idle_review"].sum()),
@@ -338,6 +397,7 @@ def export(result, f, meta, args, truth=None, base=None):
         summary["public_evaluation"] = {name: public_metrics(mask, truth) for name, mask in
                                         (("tag_only", original), ("tracking_supported", supported),
                                          ("new_frames", additions), ("combined", combined))}
+        summary["public_evaluation"]["episodes"] = public_metrics(result["episode_mask"], truth)
         summary["public_evaluation"]["by_rule"] = {}
         for rule in sorted({r["rule"] for r in result["intervals"]}):
             mask = np.zeros(len(f), dtype=bool)
@@ -347,37 +407,88 @@ def export(result, f, meta, args, truth=None, base=None):
             summary["public_evaluation"]["by_rule"][rule] = public_metrics(mask, truth)
     pd.DataFrame(result["intervals"], columns=["event_id", "restart_type", "half", "rule", "tier", "frame_verified", "start_frame", "end_frame_exclusive", "duration_s", "restart_motion_frame"]).to_csv(out / "intervals.csv", index=False)
     pd.DataFrame(result["restarts"]).to_csv(out / "restart_review.csv", index=False)
-    for name, mask in (("tracking_supported", supported), ("combined", combined), ("new_frames", additions)):
+    episode_fields = ["event_id", "restart_type", "half", "stop_evidence", "stop_observed_frame",
+                      "last_waiting_frame_exclusive", "restart_motion_frame", "frame_verified",
+                      "start_frame", "end_frame_exclusive", "duration_s", "restart_uncertainty_frames",
+                      "restart_earliest_frame", "restart_latest_frame", "confirmation_frame",
+                      "confirmation_available_frame", "timing_margin_frames", "bounds_kind", "restart_uncertainty_s"]
+    pd.DataFrame(result["episodes"], columns=episode_fields).to_csv(out / "episodes.csv", index=False)
+    pd.DataFrame(result["episode_review"], columns=episode_fields[:8] + ["reason"]).to_csv(
+        out / "episode_review.csv", index=False)
+    detection_fields = episode_fields[:8] + episode_fields[12:] + ["tag_team", "window_end_frame_exclusive"]
+    pd.DataFrame(result["restart_detections"], columns=detection_fields).to_csv(out / "restart_detections.csv", index=False)
+    assignment_fields = ["event_id", "half", "restart_type", "restart_earliest_frame", "restart_latest_frame",
+                         "tag_team_label", "pre_tracking_team", "post_tracking_team", "assigned_team",
+                         "assignment_start_frame", "assignment_end_frame_exclusive", "source",
+                         "pre_evidence_frames", "post_evidence_frames", "status", "reason", "selected_frames"]
+    pd.DataFrame({"frame": f.frame, "label": team_result["labels"]}).to_csv(out / "restart_team.csv", index=False)
+    for name, mask in (("tracking_supported", supported), ("combined", combined), ("new_frames", additions),
+                       ("episode_mask", result["episode_mask"]), ("episode_combined", result["episode_combined"]),
+                       ("fragment_combined", result["fragment_combined"])):
         pd.DataFrame({"frame": f.frame, "label": np.where(mask, "D", "X")}).to_csv(out / (name + ".csv"), index=False)
     if base is not None:
-        labels = np.where(combined, "D", base)
+        dead_only = np.where(overlay_mask, "D", base)
+        labels, applied = apply_restart_overlay(base, overlay_mask, team_result, enabled=team_policy == "local")
+        pd.DataFrame({"frame": f.frame, "label": dead_only}).to_csv(out / "overlaid_dead_only.csv", index=False)
         pd.DataFrame({"frame": f.frame, "label": labels}).to_csv(out / "overlaid.csv", index=False)
+        summary["restart_team_applied_frames"] = int(applied.sum())
+        summary["restart_team_changed_frames"] = int((labels != dead_only).sum())
         if truth is not None:
             summary["public_overlay_dead_evaluation"] = {
                 "before": public_metrics(base == "D", truth), "after": public_metrics(labels == "D", truth),
-                "note": "Frames outside the combined override retain the original prediction, including its D labels."}
+                "note": "D policy applies first, then corroborated local H/A assignments strictly after restart bounds."}
             from evaluation import possession_metrics as pm
             summary["public_possession_scores"] = {}
-            for name, prediction in (("before", base), ("after", labels)):
+            for name, prediction in (("before", base), ("dead_only", dead_only), ("after", labels)):
                 scores = pm.evaluate(pm.label_codes(truth), pm.label_codes(prediction), bootstrap_n=0)
                 summary["public_possession_scores"][name] = {key: scores[key] for key in ("macro_f1", "spell_f1_mean")}
+    assignment_rows = []
+    for row in team_result["assignments"]:
+        a, b = row["assignment_start_frame"], row["assignment_end_frame_exclusive"]
+        active = applied[a:b] if a is not None else np.zeros(0, dtype=bool)
+        assignment_rows.append({**row,
+            "applied_frames": int(active.sum()) if base is not None else None,
+            "changed_frames": int((active & (labels[a:b] != dead_only[a:b])).sum())
+                if base is not None and a is not None else (0 if base is not None else None)})
+    assignments = pd.DataFrame(assignment_rows, columns=assignment_fields + ["applied_frames", "changed_frames"])
+    for column in ("assignment_start_frame", "assignment_end_frame_exclusive", "applied_frames", "changed_frames"):
+        assignments[column] = assignments[column].astype("Int64")
+    assignments.to_csv(out / "restart_assignments.csv", index=False)
     review = f.copy()
-    review["status"] = np.select([supported, result["resume"], original, result["setup_review"], result["idle_review"], result["scope"]],
-                                  ["tracking_supported_dead", "release_to_possession", "tag_only_goal_candidate",
+    review["status"] = np.select([result["episode_mask"], result["retained_goals"], supported,
+                                  result["resume"], original & ~result["retained_goals"],
+                                  result["setup_review"], result["idle_review"], result["scope"]],
+                                  ["reconstructed_stoppage", "tag_only_goal_candidate", "fragment_evidence_only",
+                                   "release_to_possession", "goal_override_released",
                                    "stationary_setup_needs_confirmation", "idle_players_only", "unresolved_restart_window"], default="outside_review")
-    review["selected_dead"] = combined
+    review["selected_dead"] = overlay_mask
+    review["combined_dead"] = combined
+    review["episode_dead"] = result["episode_mask"]
+    review["goal_retained"] = result["retained_goals"]
+    review["restart_uncertain"] = team_result["uncertain"]
+    review["restart_team_candidate"] = team_result["labels"]
+    review["restart_team_applied"] = applied
     review.to_csv(out / "frame_evidence.csv.gz", index=False, compression="gzip")
     (out / "summary.json").write_text(json.dumps(summary, indent=2) + "\n")
     lines = ["# Tracking-supported dead zones", "",
              "**{} additional candidate dead frames ({:.2f}s)** beyond the tag-only goal cores. "
-             "Tracking evidence supports {} frames in total, across {} tagged restarts. "
+             "Fragment evidence supports {} frames in total, across {} tagged restarts. "
              "These are heuristic detections, not certain labels.".format(summary["new_frames_beyond_tag_only"], summary["new_seconds_beyond_tag_only"],
                 summary["tracking_supported_frames"], summary["tagged_restarts_with_supported_evidence"]), "",
              "{} added frames are inside the published scored periods; {} are outside them "
              "(for example, before the first kickoff). Overlapping tags can support the same interval; "
              "frame counts are unions, not sums of clips.".format(summary["new_frames_in_scored_periods"], summary["new_frames_outside_scored_periods"]), "",
              "The combined mask contains {} D frames, retaining the original goal candidates except "
-             "for {} frames with sustained movement evidence. Unselected frames are unknown, not live.".format(summary["combined_dead_frames"], summary["original_goal_frames_revoked"]), "",
+             "for {} frames released at or after sustained movement evidence. Unselected frames are unknown, not live.".format(summary["combined_dead_frames"], summary["original_goal_frames_revoked"]), "",
+             "The experimental episode mask uses {} reconstructed stoppages ({} frames), requiring waiting and "
+             "a corroborated restart. Unfinished fragments remain diagnostic; {} candidates lack a "
+             "corroborated endpoint. Selected D policy: {} (fragments is the default).".format(summary["reconstructed_episode_count"],
+                summary["reconstructed_episode_frames"], summary["unresolved_episode_candidates"], summary["overlay_policy"]), "",
+             "Restart detections: {}. Local H/A proposals: {} frames; applied: {} frames. "
+             "Team policy: {}. Earliest/latest restart frames are inclusive heuristic bounds, widened "
+             "for centered motion features, not calibrated confidence intervals. Team assignments start "
+             "after the upper bound and last at most one second.".format(summary["restart_detections"],
+                 summary["restart_team_proposed_frames"], summary.get("restart_team_applied_frames", 0), team_policy), "",
              "## Evidence rules", "",
              "- **Stationary setup → launch:** enough players from both teams, low median and upper-percentile "
              "player speed, a stationary ball near a player in the appropriate restart area, followed by "
@@ -388,7 +499,11 @@ def export(result, f, meta, args, truth=None, base=None):
              "then a sustained moving ball near the centre and increased player movement corroborate a restart. "
              "This specific rule permits an occluded ball during the waiting period; conflicting visible ball evidence breaks it.",
              "- **Abstention:** missing ball alone, player stillness alone, unresolved stationary setup, bad geometry, "
-             "too few players, and implausible jumps do not become D. Other rules never bridge missing-ball gaps.",
+             "too few players, and implausible jumps do not establish a stoppage. Episode reconstruction may "
+             "bridge at most two seconds of missing ball between compatible observations with good geometry and player coverage.",
+             "- **Episode endpoint:** actual coordinate displacement over 0.4s, an appropriate restart origin, "
+             "and a launch within the tag clip. Ball retrieval or reported speed alone is insufficient. "
+             "Unresolved stop observations remain in episode_review.csv and are excluded from the experimental episode mask.",
              "- **Resume:** sustained moving ball inside the pitch plus player activity releases the override. "
              "Players moving by themselves never establish a restart or possession.", "",
              "{} stationary-setup frames and {} idle-only frames remain review candidates. All movement "
@@ -397,7 +512,7 @@ def export(result, f, meta, args, truth=None, base=None):
              "## Public five-minute diagnostic", ""]
     if truth is not None:
         lines += ["| Mask | Correct D | False D | Precision | Dead recall |", "|---|---:|---:|---:|---:|"]
-        for key in ("tag_only", "tracking_supported", "new_frames", "combined"):
+        for key in ("tag_only", "tracking_supported", "episodes", "new_frames", "combined"):
             s = summary["public_evaluation"][key]
             lines.append("| {} | {} | {} | {} | {} |".format(key, s["true_dead"], s["false_dead"],
                 "n/a" if s["precision"] is None else "{:.1%}".format(s["precision"]),
@@ -412,10 +527,19 @@ def export(result, f, meta, args, truth=None, base=None):
         lines.append("Not evaluated; pass --public-gt for a separate diagnostic.")
     lines += ["", "## Files", "", "- `intervals.csv`: event-linked evidence ranges and inferred launch frames; exclusive ends.",
               "- `new_frames.csv`: only additions beyond the old goal cores, D/X on every video frame.",
-              "- `tracking_supported.csv`: tracking-only D/X mask.", "- `combined.csv`: original goal candidates plus tracking additions, minus movement conflicts.",
+              "- `tracking_supported.csv`: fragment evidence D/X mask.",
+              "- `combined.csv`: selected D policy's mask; fragments by default.",
+              "- `episode_combined.csv`: experimental goal-plus-episode D mask.",
+              "- `episode_mask.csv`, `episodes.csv`: reconstructed stoppages and their endpoint evidence.",
+              "- `episode_review.csv`: stop candidates without a corroborated restart.",
+              "- `fragment_combined.csv`: previous fragment policy for comparison.",
+              "- `restart_detections.csv`: inclusive earliest/latest restart bounds and confirmation timing.",
+              "- `restart_assignments.csv`: local team decisions, provenance and abstention reasons.",
+              "- `restart_team.csv`: H/A/X proposals; X leaves the base prediction unchanged.",
+              "- `overlaid_dead_only.csv`: selected D policy before local team assignment.",
               "- `frame_evidence.csv.gz`: per-frame features, quality fields, status and selected D mask.",
               "- `restart_review.csv`: coverage and visibility for every tagged restart.",
-              "- `overlaid.csv`, if requested: existing possession predictions with the combined D override.", "",
+              "- `overlaid.csv`, if requested: existing possession predictions with the selected policy's D override.", "",
               "Homography is a quality gate. ATD coordinates are already pitch coordinates; applying the "
               "matrix again would be incorrect. Frame alignment: ATD row ID minus one; tags round(seconds × 25); "
               "homography frame already zero-based. Pitch size and km/h speed units come from the supplied XML.", ""]
@@ -433,6 +557,10 @@ def main():
     parser.add_argument("--out", type=Path, default=Path("data/tracking_dead_zones"))
     parser.add_argument("--public-gt", type=Path)
     parser.add_argument("--overlay", type=Path)
+    parser.add_argument("--overlay-policy", choices=("fragments", "episodes"), default=DEFAULT_OVERLAY_POLICY,
+                        help="D overlay: fragments (default), or experimental bounded episodes")
+    parser.add_argument("--restart-team-policy", choices=("local", "off"), default=DEFAULT_RESTART_TEAM_POLICY,
+                        help="Corroborated local team assignment after restarts (default: local), or off")
     parser.add_argument("--reuse-features", action="store_true", help="Reuse only a cache matching the input file fingerprints")
     args = parser.parse_args()
     meta = metadata(args.metadata)
@@ -441,7 +569,7 @@ def main():
     args.out.mkdir(parents=True, exist_ok=True)
     fingerprint = {k: [str(getattr(args, k).resolve()), getattr(args, k).stat().st_size, getattr(args, k).stat().st_mtime_ns]
                    for k in ("raw", "metadata", "homography")}
-    fingerprint["feature_version"] = 1
+    fingerprint["feature_version"] = 3
     cache, manifest = args.out / "features.npz", args.out / "features_manifest.json"
     if args.reuse_features and cache.exists() and manifest.exists() and json.loads(manifest.read_text()) == fingerprint:
         with np.load(cache, allow_pickle=False) as arrays:

@@ -1,115 +1,173 @@
-# Extending dead zones with tracking
+# Stoppage detection from tracking
 
 Run from the repository root with NumPy and pandas installed:
 
 ```sh
 python -m deadzones.tracking_dead_zones \
-  --public-gt evaluation/gt/BAR-ATH_possession_gt_public.csv \
+  --out data/restart_detection_v3 \
   --overlay evaluation/results/baseline_smooth125.csv
 ```
 
-The supplied files have been copied into the ignored `data/tactical/` directory.
-Use `--raw`, `--metadata`, `--homography`, and `--tags` to choose different input
-paths. Results are in `data/tracking_dead_zones/`; begin with `report.md`.
-Use `--reuse-features` on subsequent runs to reuse the features if file paths,
-sizes, modification times, and feature version still match the cache manifest.
+The default D policy is **`fragments`**. The stricter `--overlay-policy episodes`
+is **experimental and opt-in** until independent evaluation supports it. Both
+masks are exported on every run. Restart detection and local team assignment
+operate with either D policy; selecting a restart does not opt into episode masks.
 
-The temporary environment used for this analysis is
-`/private/tmp/mtah-tracking-env/bin/python`. For a persistent environment, install
-the repository's `requirements.txt` (NumPy and pandas).
+The default `--restart-team-policy local` adds corroborated H/A assignments only
+after a restart's uncertainty range, for at most one second. Use
+`--restart-team-policy off` to disable these assignments. `overlaid_dead_only.csv`
+also provides the D-only result for direct comparison. All other input labels
+are preserved; a selected D override takes precedence over H/A proposals.
+Start from the original possession CSV when switching policies, since overlaying
+an already modified CSV cannot undo its existing D labels.
 
-## What makes a new dead-frame candidate
+Use `--public-gt evaluation/gt/BAR-ATH_possession_gt_public.csv` for a separate
+pipeline diagnostic. Labels are read only after inference. Do not use them to
+choose rules or tune thresholds. Use `--reuse-features` for a cache matching the
+input fingerprints and feature version; v3 recomputes older caches to include
+separate reliable-player distances for each team.
+Raw input overrides remain `--raw`, `--metadata`, `--homography`, and `--tags`.
 
-This adds evidence rules to the existing tag-only detector. It is offline and
-rule-based, without a fitted model or calibrated probability. Public reference
-labels are read only after inference for diagnostics.
+## Why bounded intervals matter
 
-1. **Stationary setup followed by a launch.** Within a restart clip or the
-   preceding 30 seconds, the ball stays within a one-metre cluster for at least
-   one second, at no more than 0.7 m/s. At least 18 reliable player tracks are
-   visible, with at least seven from each team. Median player speed is at most
-   1.2 m/s, and the 90th percentile at most 2.5 m/s. The ball must be close to a
-   player and in a location appropriate to the tag: centre for kickoff, corner
-   for corner kick, sideline for throw-in, goal-area region for goal kick, or
-   inside the pitch for a free kick. Within two seconds after this setup, require
-   a sustained moving ball displaced at least 1.5m and increased player motion.
-   The setup interior becomes a candidate; the uncertain time between setup
-   and detected launch is left unmarked.
-2. **Ball outside near a restart.** The observed ball is at least one metre
-   beyond a pitch boundary for at least 0.6 seconds, with adequate player
-   visibility and valid low-error geometry. Trim 0.2 seconds off both ends.
-   This is tracking evidence for a stoppage, not a referee observation. A false
-   ball track or projection of an airborne ball can still be misleading.
-3. **Kickoff formation followed by departure.** The ball is often invisible
-   during kickoff preparation. A special rule permits this when each team
-   occupies its own half (at least 90% of visible tracks), median speed is at
-   most 0.5 m/s, and the 90th percentile is at most 1.5 m/s. A subsequent moving
-   ball within 15m of the centre, together with increased player movement,
-   must corroborate the restart within two seconds. A conflicting visible
-   ball breaks the waiting run. This rule does not extend to ordinary restarts.
+The previous detector exported visible outside-ball and setup fragments. A short
+D patch can divide a predicted H/A run into two possessions even when every
+patched frame is correct. Dead-frame precision alone does not show this cost.
+`stoppage_episodes.py` now reconstructs continuous intervals with evidence for
+both waiting and restart. These are still heuristic intervals, not proof of the
+actual whistle or the entire stoppage. Incomplete evidence stays available for
+inspection in experimental episode mode. The default fragment policy retains
+the original selection behavior while this tradeoff is evaluated independently.
 
-All rules trim uncertain edges and require persistent observations. Thresholds
-are explicit in `Params`, selected as physical heuristics rather than optimized
-against the public window. Sensitivity to those values is not calibrated.
+## Restart uncertainty and local team assignment
 
-Players moving **alone** cannot establish that play restarted: they can move
-into position during stoppages. Player stillness alone also cannot establish a
-dead ball. It stays in the review output. A moving ball inside the pitch plus
-player activity releases the D override; possession then comes from the existing
-tracker. This movement signal does not establish H/A ownership, and an input
-prediction that already says D is not automatically converted to H or A.
+`restart_detection.py` uses the observed waiting/departure transitions from
+`stoppage_episodes.py`, independently of which D mask is selected.
 
-## Data quality and alignment
+- **Bounds:** `restart_earliest_frame` and `restart_latest_frame` are inclusive.
+  The range runs from waiting end minus 0.2s to observed motion onset plus 0.2s,
+  clipped to the event search scope. The margin accounts for centered motion
+  features; these are heuristic observation bounds, not guaranteed contact times
+  or calibrated confidence intervals. The raw waiting end and motion onset are
+  also exported.
+- **Confirmation:** `confirmation_frame` is the last observation needed for
+  sustained departure and displacement. `confirmation_available_frame` includes
+  the centered-feature lookahead. Local assignments are offline and may use later
+  observations to support an earlier frame; this is not streaming inference.
+- **Timing limits:** no H/A proposal is made within any detected restart's
+  uncertainty range. Brackets wider than one second abstain. The assignment window
+  starts after the latest possible restart and ends within one second, the tagged
+  event's end, or the next restart range, whichever comes first.
+- **Team evidence:** per-team distances use reliable player tracks. A vote needs
+  a player within 2.5m of the ball and at least a 1m advantage over the other team.
+  Evidence must include a continuous 0.2s run and an 80% share of eligible votes.
+  The one-second pre-restart window excludes uncertain frames and rejects stale
+  evidence; the post-restart window includes only valid in-pitch observations.
+- **Tags:** club names map to H/A by exact normalized metadata names, using the
+  repository's first-team/home convention. A known tag requires agreeing tracking.
+  An unknown tag requires post-restart tracking; it cannot carry a pre-restart
+  guess through an unseen flight. Conflicting tag/track evidence, contested ball
+  proximity, or conflicting overlapping tags cause abstention.
+- **Handoff:** assignments stop at the first missing ball, quality failure,
+  ball-out observation, contested/opposing proximity, new restart range or selected
+  D override. They do not resume after that interruption. Overlapping proposals
+  that disagree on H/A abstain rather than depend on iteration order.
 
-- ATD frame IDs are checked one by one and mapped with `video_frame = id - 1`.
-  Homography indices must exactly cover the same zero-based frames. Tag seconds
-  use `round(seconds * fps)`; no halftime offset is added.
-- The metadata declares normalized coordinates on a 105×68m pitch and speeds
-  in km/h. Coordinates are scaled to metres and speeds divided by 3.6.
-- Player motion uses the larger of reported speed and speed measured from
-  positions over a centered 0.4-second window. This prevents a falsely low
-  reported speed from making a moving track look idle. Track switches with
-  implausible speeds are excluded from the reliable player count.
-- More than 24 or fewer than 18 reliable players, an underrepresented team,
-  an invalid/singular homography, or reprojection error above 2 reject evidence.
-- Ball jumps above 45 m/s are rejected. Ordinary rules never bridge missing
-  ball observations. The kickoff-formation rule is the explicit exception
-  described above, requiring corroboration after the occlusion.
-- ATD is already in pitch coordinates. Homography supplies a quality check,
-  not another transform of those positions. It is not independent ground truth;
-  the supplied data can share upstream errors.
-- Centered velocities and later launch observations require future frames.
-  This implementation is for offline analysis, not real-time operation.
+No baseline possession labels or reference labels enter restart/team inference.
+The outputs preserve unmodified bulk live play. These rules remain physical
+heuristics and have not been independently validated as a spellF1 improvement.
 
-## Outputs and confidence
+## Evidence and boundaries
 
-`new_frames.csv` contains only the new D/X candidates beyond the old goal cores.
-`tracking_supported.csv` contains all candidates with tracking support.
-`combined.csv` merges them with the old goal candidates and removes positive
-movement conflicts. Existing goal candidates retain their original uncertainty;
-they are not upgraded merely because tracking was loaded.
+1. A stop anchor is a persistent outside-ball observation on the boundary
+   appropriate to the restart type, a stationary setup with calm players, or
+   kickoff formation. Sideline exits cannot seed goal kicks. Ordinary player
+   stillness and missing ball observations alone cannot seed a stop.
+2. Waiting is supported by compatible outside-ball observations or a stationary
+   ball near a reliable player in the appropriate restart area. Up to two seconds
+   of missing ball may join compatible observations, with good geometry and
+   player coverage throughout. Visible in-pitch movement and quality failures
+   break the interval. No unbracketed missing-ball tail is filled. Kickoff
+   formation retains its explicit occlusion exception.
+3. Restart confirmation requires at least 0.4 seconds of observed in-pitch ball
+   motion and at least 0.5m of actual coordinate displacement. Reported speed
+   alone is insufficient. The restart must occur within the tagged clip, no more
+   than two seconds after waiting evidence ends.
+4. Throw-ins require an inward trajectory from the same touchline, within 15m
+   of its observed origin. Goal kicks, corners and free kicks require a recent
+   stationary setup at an appropriate location and subsequent displacement of
+   at least 1.5m. Kickoffs require departure near the centre. A restart need not
+   make the whole team accelerate. These gates reduce, but cannot eliminate,
+   confusion between ball retrieval and a real restart.
+5. An outside-ball stop can be refined backwards to a contiguous observed line
+   crossing, within two seconds, without extrapolating through missing tracks.
+   The 0.2-second start guard remains. In experimental episode mode the D interval ends at the earlier of the
+   last waiting boundary and guarded motion onset. The uncertain gap between
+   waiting and motion is reported, not automatically labeled dead.
+6. Original tag-derived goal cores remain a separate, weaker prior. Sustained
+   motion can release a core. Once released, a later occlusion does not turn the
+   old core back on. A separately detected new stoppage can still be selected.
 
-`frame_evidence.csv.gz` contains every frame's measurements and decision. Statuses
-distinguish tracking-supported dead candidates, inherited goal candidates,
-unresolved stationary setups, idle-player-only evidence, and movement releasing
-the override. `intervals.csv` links evidence to tag IDs and observed departure
-frames. Intervals have exclusive ends. Multiple overlapping tags can refer to
-the same stoppage; masks count each frame once and do not count overlapping tags
-as independent corroboration.
+Thresholds are physical heuristics, not calibrated probabilities. Automatic
+projection of an airborne ball may look out of bounds; a moving retrieved ball
+may resemble a restart. Withholding unresolved fragments trades coverage for
+stronger endpoint evidence. It is not a demonstrated full-match score gain.
 
-No new interval is marked `frame_verified=True`. An automatic ball track outside
-the pitch and players standing still are useful evidence, not absolute certainty.
-The small public evaluation should not be interpreted as full-match precision.
+## Tracking quality
+
+ATD row IDs must be contiguous and map to `video_frame = id - 1`. Homography
+frames cover the same zero-based timeline. XML times use `round(seconds * fps)`.
+ATD metadata supplies normalized-coordinate scaling and km/h-to-m/s conversion.
+Homography is a quality gate; ATD positions are already in pitch coordinates.
+
+Player motion uses the larger of supplied speed and speed measured from positions
+over a centered 0.4-second window. Implausible tracks are excluded from player
+counts **and nearest-player distances**, so a teleporting ghost cannot anchor a
+restart. Gates require 18–24 reliable players, at least seven per team, valid
+nonsingular geometry, and reprojection error at most two. Ball jumps above 45m/s
+are rejected, and reconstructed departures also check reappearance displacement.
+Centered motion and future confirmation make this an offline detector.
+
+## Outputs
+
+- `combined.csv`: selected D/X policy, fragments by default.
+- `episode_combined.csv`: experimental goal-plus-episode D/X mask.
+- `episode_mask.csv`: reconstructed tracking intervals without the goal prior.
+- `episodes.csv`: event IDs, stop evidence, waiting boundary, motion onset,
+  restart uncertainty, and half-open selected intervals.
+- `episode_review.csv`: stop anchors without a corroborated restart endpoint.
+- `fragment_combined.csv`: previous fragment policy with current tracking features.
+- `tracking_supported.csv`: visible fragment evidence, retained as diagnostics.
+- `new_frames.csv`: selected policy's D frames beyond the original goal cores.
+- `restart_detections.csv`: inclusive timing bounds, confirmation timing, tag team,
+  source evidence and event scope for every corroborated restart hypothesis.
+- `restart_assignments.csv`: team evidence, selected local span, source, abstention
+  reason and selected/applied/changed frame counts. Per-row counts can overlap;
+  summary counts are unions. Applied counts are blank without an input overlay.
+- `restart_team.csv`: H/A/X proposals; X means leave the base unchanged. This is
+  an inference diagnostic, not a standalone possession submission.
+- `restart_review.csv`: fragment and episode coverage for each restart tag.
+- `frame_evidence.csv.gz`: features, statuses, episode and goal masks on every frame.
+- `overlaid_dead_only.csv`: input possession labels with the selected D override.
+- `overlaid.csv`: D-only result plus enabled, unblocked local H/A assignments.
+- `summary.json`, `report.md`: counts, parameters, provenance and optional metrics.
+
+Overlapping tags may support the same interval. Counts use the union of frames;
+tag count is not a count of independent stoppages. Existing `intervals.csv` and
+`public_evaluation.by_rule` describe fragment evidence, not the selected episode
+mask. No inferred interval is marked frame-verified.
 
 ## Checks
 
 ```sh
-python -m unittest deadzones.test_tracking_dead_zones -v
-python evaluation/validate_submission.py data/tracking_dead_zones/combined.csv
-python evaluation/validate_submission.py data/tracking_dead_zones/overlaid.csv
+python -m unittest deadzones.test_dead_zones deadzones.test_tracking_dead_zones deadzones.test_stoppage_episodes deadzones.test_restart_detection -v
+python evaluation/validate_submission.py data/restart_detection_v3/combined.csv
+python evaluation/validate_submission.py data/restart_detection_v3/overlaid.csv
 ```
 
-The tests cover missing balls, false stillness, kickoff formation and departure,
-motion alone, bad geometry, sparse tracking, outlier jumps, boundary guards,
-repeated tag coverage, unit conversion, frame alignment, and revocation of an
-old goal candidate when positive movement evidence conflicts with it.
+Synthetic tests cover short and long occlusions, quality gaps, visible live-motion
+conflicts, false speed channels, wrong restart locations, teleporting reappearances,
+observed line crossings, half boundaries, duplicate tags, stationary teammates,
+and goal overrides after a restart. The original detector tests remain in place.
+Full discovery still encounters the pre-existing missing `audit_dead_zones.py`
+implementation; these commands explicitly run the maintained detector suites.
