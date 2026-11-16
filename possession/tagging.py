@@ -88,3 +88,37 @@ def pre_kickoff(events, blocks, n_frames, moving=None, max_delay=config.KICKOFF_
         out[first:kick] = True
         lengths.append(kick - first)
     return out, lengths
+
+
+def goal_cores(events, blocks, guard=config.FPS):
+    """[start, stop) frame ranges that must be dead by the Laws: after a goal, until the
+    kickoff that follows it. From the Smart Tagging GOALS tags and "Kick Off (After Goal)" set
+    pieces (idea and pairing rule from a teammate's deadzones/dead_zones.py): start one second
+    after the last other tag overlapping the goal clip ends, stop one second before the
+    kickoff clip starts. Goals without exactly one clean kickoff are skipped."""
+    def kind(event):
+        return (event["tags"].get("Type") or "").strip().lower()
+
+    def code(event):
+        return (event["code"] or "").strip().upper()
+
+    goals = [e for e in events if code(e) == "GOALS"]
+    restarts = [e for e in events if code(e) == "SET PIECES"]
+    kicks = [e for e in restarts if kind(e) == "kick off (after goal)"]
+    out = []
+    for goal in goals:
+        block = [b for b in blocks if b[1] <= goal["start_frame"] <= b[2]]
+        after = [k for k in kicks if block and goal["start_frame"] < k["start_frame"] <= block[0][2]
+                 and k["start_frame"] - goal["start_frame"] <= 360 * config.FPS]
+        if not after:
+            continue
+        kick = min(after, key=lambda e: e["start_frame"])
+        if any(goal["end_frame"] <= r["start_frame"] < kick["start_frame"] for r in restarts):
+            continue
+        context = [e["end_frame"] for e in events if e is not kick and e is not goal
+                   and e["end_frame"] > goal["start_frame"] and e["start_frame"] < kick["start_frame"]]
+        start = max([goal["start_frame"]] + context) + guard
+        stop = kick["start_frame"] - guard
+        if stop > start:
+            out.append((int(start), int(stop)))
+    return out

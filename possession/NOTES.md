@@ -465,3 +465,12 @@ One matched possession fewer than v7 (10 vs 11 at IoU 0.5); the scoreboard state
 Reproducibility of v8 (2026-11-15): both models retrained from scratch (`learned train`), ATD
 cache rebuilt, CSV byte-identical to possession_v8.csv (video detections reused). Same machine
 only; a second machine is still untested.
+
+## 2026-11-15 (night) — teammates' branches; goal-to-kickoff dead stretches
+origin/main has a teammate's deadzones/ (dead-ball overlay: goal-to-kickoff stretches from
+tags, tracking-based stoppage and restart detection; by its own write-up not validated on
+spellF1) and a Vidal-Codina possession.py. Only the goal-to-kickoff idea is testable here.
+`probe goals` on v8: 4 stretches (36.7 / 94.4 / 148.8 / 183.4 s, 11583 frames); 98.2% already
+labelled dead, 204 frames not, 2 possessions start inside. Rule added, off by default
+(`USE_GOAL_DEAD`, `tagging.goal_cores`, gate variant "goaldead"). At most 2 spurious
+possessions of 317 are at stake (about +0.005 spellF1).

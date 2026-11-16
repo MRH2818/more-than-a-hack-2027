@@ -122,6 +122,9 @@ def emissions(arrays, events, graded_mask, blocks, calibrate_zone=False, gap_dea
     with np.errstate(invalid="ignore"):
         moving = ball["observed"] & (ball["speed"] >= config.BALL_MOVING_MS)
     forced, pre_kickoff_frames = tagging.pre_kickoff(events, blocks, n, moving)
+    if config.USE_GOAL_DEAD:
+        for start, stop in tagging.goal_cores(events, blocks, config.GOAL_GUARD):
+            forced[max(0, start):min(n, stop)] = True
     out[forced, :2] = -1e6
     out[forced, 2] = 0.0
     return out, {"ball": ball, "control": state, "dead_parts": dead_parts, "forced": forced,

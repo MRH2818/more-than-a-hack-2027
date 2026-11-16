@@ -66,5 +66,42 @@ class GateRunTests(unittest.TestCase):
         self.assertIn("heldout_phase_agree_pct", row)
 
 
+class GoalDeadTests(unittest.TestCase):
+    @staticmethod
+    def tag(code, start, end, kind=None):
+        return {"code": code, "start_frame": start, "end_frame": end, "tags": {"Type": kind}}
+
+    def test_goal_cores(self):
+        from possession import tagging
+        events = [self.tag("GOALS", 1000, 4025), self.tag("BUILD UP", 900, 1500),
+                  self.tag("SET PIECES", 4000, 4125, "Kick Off (After Goal)"),
+                  # second goal: another restart overlaps the kickoff -> no stretch claimed
+                  self.tag("GOALS", 6000, 7000), self.tag("SET PIECES", 6500, 7375, "Throw-in"),
+                  self.tag("SET PIECES", 7200, 7300, "Kick Off (After Goal)"),
+                  # third goal: a restart between the goal clip and the kickoff -> skipped
+                  self.tag("GOALS", 8000, 8200), self.tag("SET PIECES", 8300, 8400, "Corner"),
+                  self.tag("SET PIECES", 8600, 8700, "Kick Off (After Goal)")]
+        self.assertEqual(tagging.goal_cores(events, [(1, 0, 9999)]), [(1525, 3975)])
+        self.assertEqual(tagging.goal_cores(events, [(1, 0, 3000)]), [])     # kickoff in another half
+        self.assertEqual(tagging.goal_cores(kickoff_events(), [(1, 0, 199318)]), [])
+
+    def test_pipeline_forces_dead_between_goal_and_kickoff(self):
+        from unittest import mock
+        from possession import pipeline
+        arrays = synthetic_match()
+        base, _ = pipeline.label(arrays, events=kickoff_events())
+        runs = np.flatnonzero(np.isin(base, ("H", "A")))
+        start = int(runs[len(runs) // 2])                        # somewhere in live play
+        events = kickoff_events() + [
+            self.tag("GOALS", start - 100, start + 525),
+            self.tag("SET PIECES", start + 500, start + 625, "Kick Off (After Goal)")]
+        off, _ = pipeline.label(arrays, events=events)
+        with mock.patch.object(config, "USE_GOAL_DEAD", True):
+            on, _ = pipeline.label(arrays, events=events)
+        core = slice(start - 100 + config.FPS, start + 500 - config.FPS)
+        self.assertTrue(np.all(on[core] == "D"))
+        self.assertFalse(np.all(off[core] == "D"))
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -200,9 +200,44 @@ def restart_visibility():
             observed[inside].mean(), int(inside.sum())))
 
 
+def goal_check():
+    """Does the current pipeline already call the goal-to-kickoff stretches dead? Aggregates."""
+    from . import pipeline, tagging
+    arrays = io_atd.load()
+    blocks = half_video_blocks(GAME)
+    events = tagging.load_events()
+    labels, _ = pipeline.label(arrays, events=events)
+    cores = tagging.goal_cores(events, blocks)
+    total = sum(b - a for a, b in cores)
+    dead = sum(int((labels[a:b] == "D").sum()) for a, b in cores)
+    starts = 0
+    for a, b in cores:
+        seg = labels[a:b]
+        starts += int((np.isin(seg[1:], ("H", "A")) & (seg[1:] != seg[:-1])).sum())
+    edge = 3 * config.FPS
+    first = sum(int((labels[a:min(b, a + edge)] != "D").sum()) for a, b in cores)
+    last = sum(int((labels[max(a + edge, b - edge):b] != "D").sum()) for a, b in cores)
+    inside_runs = 0
+    for a, b in cores:
+        for start, stop in ball_mod.runs_of(np.isin(labels[a:b], ("H", "A"))):
+            inside_runs += int(start > 0 and stop < b - a)
+    print("not-dead frames: first 3 s of a stretch {}, last 3 s {}, in between {}; live runs "
+          "that both start and end inside a stretch: {}".format(
+              first, last, sum(int((labels[a:b] != "D").sum()) for a, b in cores) - first - last,
+              inside_runs))
+    lengths = [round((b - a) / float(config.FPS), 1) for a, b in cores]
+    print("goal-to-kickoff stretches: {} (lengths s: {}), {} frames".format(
+        len(cores), sorted(lengths), total))
+    if total:
+        print("labelled dead inside them: {:.1%}; not dead: {} frames; possessions starting "
+              "inside: {}".format(dead / float(total), total - dead, starts))
+
+
 if __name__ == "__main__":
     if len(sys.argv) > 1 and sys.argv[1] == "gaps":
         gap_model()
+    elif len(sys.argv) > 1 and sys.argv[1] == "goals":
+        goal_check()
     elif len(sys.argv) > 1 and sys.argv[1] == "restarts":
         restart_visibility()
     else:

@@ -348,3 +348,10 @@ USE_BOUNDARY = False
 BOUNDARY_HALF = 6          # training target: a true change within 6 frames (0.24 s)
 BOUNDARY_WINDOW = 50       # search 2 s either side of the decoded boundary
 BOUNDARY_MARGIN = 0.05     # the new frame must score this much higher
+
+# -- goal to kickoff ------------------------------------------------------------------------------
+# Law 8/10: after a goal the ball is dead until the kickoff. Smart Tagging has GOALS tags and
+# "Kick Off (After Goal)" set pieces; the stretch between them (with a guard at each end,
+# tagging.goal_cores) is forced to D. Pairing rule from a teammate's deadzones/dead_zones.py.
+USE_GOAL_DEAD = False
+GOAL_GUARD = FPS
