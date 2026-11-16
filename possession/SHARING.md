@@ -22,7 +22,7 @@ from your own local copy of the competition data in `data/`.
 
 spellF1 runs from 0 to 1, and 1 is perfect. It's the metric the leaderboard ranks on.
 
-| Test | v6 | v7 | v8 | What it tells us |
+| Test | v6 | v7 | v9 | What it tells us |
 |---|---|---|---|---|
 | Bundesliga held-out matches, strict answers | 0.576 | 0.702 | **0.715** | Main yardstick: 3 full matches the models never saw. |
 | Bundesliga held-out, loose answers | 0.506 | 0.615 | **0.634** | Same, with a looser reading of "control". |
