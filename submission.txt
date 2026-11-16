@@ -1,0 +1,100 @@
+# Submission Guide: Link & Hoernig (2017) + YOLO11s Video Ball (0.5625 spellF1)
+
+This document describes how to reproduce the top-ranking `link_hoernig_video_ball.csv` submission (`spellF1 = 0.5625`, `macroF1 = 0.8432`) using `starter/06_link_hoernig_video_ball.ipynb`.
+
+---
+
+## 1. Overview of the Approach
+
+The model implements the individual-to-team possession framework from **Link & Hoernig (2017)** (*"Individual Ball Possession in Soccer"*, Science and Medicine in Football) augmented with computer vision ball detections:
+
+1. **ATD + YOLO11s Video Ball Fusion:**
+   - The raw ATD tracking has missing ball coordinates on 40.7% of graded frames (64,643 frames).
+   - Up to 5 candidate ball detections per frame from `cache/video_ball_yolo11s_1920.npz` (YOLO11s at 1920p resolution) are projected onto the pitch plane via the per-frame homography (`starter/load_homography.py`).
+   - A dynamic-programming kinematic tracker stitches physically consistent ball trajectories across ATD dropouts (max velocity 35 m/s, position tolerance 2.0 m), filling 24,559 missing frames (38.0% of gaps) and boosting ball coverage during live play to 97.0%.
+
+2. **Video-Enhanced Running Flag:**
+   - Detects ball out-of-bounds events via apron candidates (0.2 m to 3.0 m outside touchlines/goal lines) when tracking drops.
+   - Guards against false stoppages during fast switches of play (live ball speed >= 4.5 m/s inside pitch).
+   - Integrates Smart Tagging set-piece preparation windows and Law 8 kickoff movement detection, achieving an Alive/Dead F1 of 0.8341 (0.9624 overall alive/dead F1 on the public window).
+
+3. **Rauch-Tung-Striebel (RTS) Kalman Smoothing:**
+   - Runs a 3-state (position, velocity, acceleration) RTS smoother on valid fused ball segments (jerk parameter $q = 400\text{ m}^2/\text{s}^5$, observation noise $r = 0.04\text{ m}^2$).
+   - Runs a 2-state RTS smoother on all 46 player tracks ($q = 25\text{ m}^2/\text{s}^3$, $r = 0.02\text{ m}^2$).
+
+4. **Link & Hoernig IBA/IBC Detection:**
+   - **Start of Action (IBA):** Triggered when ball acceleration exceeds $3.0\text{ m/s}^2$ while within $T_K = 1.107\text{ m}$ of a player.
+   - **End of Action (IBA):** Terminated when the ball's actual position deviates by more than $T_A = 6.882\text{ m}$ from its 1-second physical trajectory prediction.
+   - **Controlled Possession (IBC):** Filtered by opponent pressure distance ($d_{\text{opp}} = 4.540\text{ m}$) and a minimum controlled duration threshold of 15 frames ($0.60\text{ s}$).
+
+---
+
+## 2. Requirements & Prerequisite Files
+
+Ensure the following data and cache files are present:
+- `data/tactical/BAR-ATH_tactical_atd.txt` (raw ATD tracking)
+- `data/tactical/BAR-ATH_tactical_meta.json` (team slot assignments & metadata)
+- `data/tactical/BAR-ATH_tactical_homography.json` (per-frame homography matrices)
+- `data/tactical/BAR-ATH_smart_tagging.json` (event tags for kickoff & set pieces)
+- `cache/video_ball_yolo11s_1920.npz` (YOLO11s video ball detections)
+
+Python dependencies: `numpy`, `pandas`, `scipy`, `matplotlib`, `nbformat`.
+
+---
+
+## 3. How to Run & Generate the Submission
+
+### Method A: Execute Notebook #6 in Jupyter / VS Code
+1. Open `starter/06_link_hoernig_video_ball.ipynb`.
+2. Run all cells from top to bottom (**Kernel -> Restart & Run All**).
+3. **Cell 12 (Step 6)** exports the predictions to:
+   ```
+   evaluation/results/link_hoernig_video_ball.csv
+   ```
+4. **Cell 13** runs the submission validator and evaluation leaderboard.
+
+### Method B: Headless Command-Line Execution
+Run notebook execution from the project root using `nbconvert` or python:
+```bash
+jupyter nbconvert --to notebook --execute starter/06_link_hoernig_video_ball.ipynb --output 06_link_hoernig_video_ball.ipynb
+```
+Or execute the script extracted directly from the notebook cells:
+```bash
+python -c "
+import json
+nb = json.load(open('starter/06_link_hoernig_video_ball.ipynb', encoding='utf-8'))
+code = '\n'.join(''.join(c['source']) for c in nb['cells'] if c['cell_type'] == 'code')
+exec(compile(code, '06_link_hoernig_video_ball.ipynb', 'exec'))
+"
+```
+
+---
+
+## 4. Validating the Submission File
+
+Run the official competition validation script:
+```bash
+python evaluation/validate_submission.py evaluation/results/link_hoernig_video_ball.csv
+```
+Expected output:
+```
+OK: evaluation/results/link_hoernig_video_ball.csv (199319 rows, cols=['frame', 'label'])
+```
+
+Run the official evaluation script to verify the leaderboard score:
+```bash
+python evaluation/run_evaluation.py
+```
+Expected leaderboard row:
+```
+rank  submission                macroF1  spellF1   poss     dur  transF1  lat_f  shareE  frag
+----  ------------------------  -------  -------  -----  ------  -------  -----  ------  ----
+   1  link_hoernig_video_ball    0.8432   0.5625     15    16.5   0.2051   +2.2   0.009  0.95
+```
+
+Metric details on the public 5-minute ground truth (7,500 frames, 17 GT possessions):
+- **spellF1 (Headline metric):** `0.5625` (IoU @0.3: 0.6875, @0.4: 0.6250, @0.5: 0.6250, @0.6: 0.5000, @0.7: 0.3750)
+- **macroF1 (Per-frame):** `0.8432` (Class H: 0.8653, Class A: 0.8302, Class D: 0.8341)
+- **Alive/Dead F1:** `0.9624`
+- **Predicted Possessions:** 15 vs 17 ground truth (mean duration 16.5s vs 14.2s)
+- **Full Match Stability:** 293 possessions across 199,319 frames (mean duration 11.6s, short <2s rate: 10.6%, Barcelona live share: 59.8%)
