@@ -95,7 +95,8 @@ class GoalDeadTests(unittest.TestCase):
         events = kickoff_events() + [
             self.tag("GOALS", start - 100, start + 525),
             self.tag("SET PIECES", start + 500, start + 625, "Kick Off (After Goal)")]
-        off, _ = pipeline.label(arrays, events=events)
+        with mock.patch.object(config, "USE_GOAL_DEAD", False):
+            off, _ = pipeline.label(arrays, events=events)
         with mock.patch.object(config, "USE_GOAL_DEAD", True):
             on, _ = pipeline.label(arrays, events=events)
         core = slice(start - 100 + config.FPS, start + 500 - config.FPS)

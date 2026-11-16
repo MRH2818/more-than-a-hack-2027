@@ -474,3 +474,9 @@ spellF1) and a Vidal-Codina possession.py. Only the goal-to-kickoff idea is test
 labelled dead, 204 frames not, 2 possessions start inside. Rule added, off by default
 (`USE_GOAL_DEAD`, `tagging.goal_cores`, gate variant "goaldead"). At most 2 spurious
 possessions of 317 are at stake (about +0.005 spellF1).
+`probe goals` breakdown: all 204 not-dead frames lie in the middle of the stretches (0 in the
+first or last 3 s), as 2 live runs that start and end inside. Gate, base (v8) / goaldead: every
+check identical (the held-out checks withhold the goal tags, so they cannot differ);
+possessions 317 / 315, stoppages 147 / 145, D share 42.6 / 42.8. Adopted -> v9
+(USE_GOAL_DEAD = True; gate variant "v8" turns it off). Justified by the Laws of the Game, not
+by a score: no test here can measure 2 possessions.

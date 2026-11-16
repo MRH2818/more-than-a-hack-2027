@@ -1,4 +1,4 @@
-# Ball possession for BAR-ATH: technical document (DRAFT, v8)
+# Ball possession for BAR-ATH: technical document (DRAFT, v9)
 
 Team: `<team_name>` · Submission file: `<team_name>.csv` · Code: `possession/` in this repository.
 
@@ -36,6 +36,7 @@ smaller cues computed on the provided game:
 
 - a weak team prior from the Smart Tagging phase tags;
 - a dead-ball cue at set-piece tags, and dead ball before the kickoff of each half;
+- dead ball between a goal tag and the kickoff tag that follows it (4 stretches);
 - where the provided tracking has no ball, team evidence from a ball we detect in the tactical
   video (section 2).
 
@@ -52,7 +53,7 @@ the provided game, and seven matches are few for a network.
 |---|---|---|
 | ATD tracking (players and ball) | Yes | The main input: all 58 features. |
 | Tactical video + per-frame homography | Yes | Ball detection where the tracking has no ball (41% of graded frames). A YOLO11s detector (COCO weights, sha256-checked) runs locally on every graded frame; pixels are mapped to pitch metres through the homography; a chain filter keeps only physically plausible paths. It fills 38% of the gaps and is used only as team evidence. |
-| Smart Tagging | Yes | Phase tags as a weak team prior; set-piece tags as a dead-ball cue; the kickoff tag to place the start of each half. |
+| Smart Tagging | Yes | Phase tags as a weak team prior; set-piece tags as a dead-ball cue; the kickoff tag to place the start of each half; goal tags paired with the following kickoff tag to mark the celebration as dead. |
 | Audio (referee whistle) | Tried, dropped | The tactical video's audio track was searched for whistles; they could not be told apart from crowd noise (nothing found near the kickoffs). |
 | Broadcast video | Not used | Not synchronised with the tactical video; our ceiling test put the gain from a perfect ball at about +0.04. |
 | Public 5-minute ground truth | Sanity check only | See section 6. |
@@ -89,6 +90,9 @@ the challenge definition, not something we could verify.
   ends only when play has clearly resumed.
 - **Restarts.** The restarting team's possession starts when the ball is back in play, not when
   the ball is placed.
+- **After a goal.** `D` from one second after the last tag overlapping the goal clip ends until
+  one second before the following kickoff clip starts. This removed two short possessions the
+  models had placed inside goal celebrations; everything else was unchanged.
 - **Before kickoff, half-time, after the whistle.** `D` before each half's kickoff (placed from
   the kickoff tag), `X` outside the graded blocks.
 
@@ -122,8 +126,9 @@ measures how well the labels recover it):
 | Transition tags withheld: median delay | — | 3.6 s | 2.7 s |
 | Video ball withheld: agrees with clear video-ball control | 86.0% | 88.2% | 88.1% |
 
-On the full match v8 finds 317 possessions (3.0 per minute) and 147 stoppages, and labels 42.6%
-of graded frames dead.
+On the full match the submission (v8 plus the goal rule above) finds 315 possessions (3.0 per
+minute) and 145 stoppages, and labels 42.8% of graded frames dead. The checks in the table are
+identical with and without the goal rule.
 
 ## 6. How we used the public 5 minutes
 

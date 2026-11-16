@@ -1,6 +1,6 @@
 # What's on the `alex-v8` branch
 
-The current pipeline, **v8**, is the one we plan to submit. The write-up for the organisers is
+The current pipeline, **v9** (v8 plus one dead-ball rule), is the one we plan to submit. The write-up for the organisers is
 `possession/TECHNICAL.md`. The full decision log, with every number and every rejected idea, is
 `possession/NOTES.md`.
 
@@ -14,6 +14,9 @@ from your own local copy of the competition data in `data/`.
   dead ball versus live, the other decides which team has it.
 - **The same decoder as v6**, which turns per-frame evidence into whole possessions.
 - **The video ball and the Smart Tagging cues from v6** are kept on top.
+- **New in v9: dead ball from a goal until the following kickoff**, read from the tags. The
+  idea and pairing rule come from the `deadzones/` work on `main`. It removes two false
+  possessions inside goal celebrations and changes nothing else.
 
 ## Current scores (v8, 2026-11-15)
 
@@ -28,7 +31,7 @@ spellF1 runs from 0 to 1, and 1 is perfect. It's the metric the leaderboard rank
 | Full match (the real leaderboard) | unknown | unknown | unknown | The official floor is smooth50 at 0.2433. |
 
 **Other facts about v8**
-- On the full match it finds 317 possessions and 147 stoppages, and labels 42.6% of graded
+- On the full match it finds 315 possessions and 145 stoppages, and labels 42.8% of graded
   frames as dead ball.
 - The video ball fills 38% of the frames where the tracking has no ball.
 
@@ -38,12 +41,12 @@ spellF1 runs from 0 to 1, and 1 is perfect. It's the metric the leaderboard rank
 - Turnovers are called a little late: withheld transition tags are matched after a median 2.7 s.
 - The step from v7 to v8 is small (+0.016) and below the scorer's 0.04 noise band.
 
-## 1. Regenerate v8 (one command, about 2.5 h on Apple Silicon the first time)
+## 1. Regenerate v9 (one command, about 2.5 h on Apple Silicon the first time)
 
 ```bash
 pip install -r requirements.txt -r possession/requirements-video.txt
-python -m possession.run --out evaluation/results/possession_v8.csv
-python evaluation/validate_submission.py evaluation/results/possession_v8.csv
+python -m possession.run --out evaluation/results/possession_v9.csv
+python evaluation/validate_submission.py evaluation/results/possession_v9.csv
 ```
 
 - **Most of the time goes on video ball detection** (YOLO11s on every graded frame, about

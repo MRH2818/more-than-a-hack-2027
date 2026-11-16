@@ -37,7 +37,7 @@ VARIANTS = {
     "v7-metrica": {"_settings": {"LEARNED_TEAM_SETTINGS": None, "LEARNED_USE_METRICA": True}},
     "v7-level2": {"_settings": {"LEARNED_TEAM_SETTINGS": None, "LEARNED_LEVEL": 2}},
     "v7": {"_settings": {"LEARNED_TEAM_SETTINGS": None}},
-    "goaldead": {"_settings": {"USE_GOAL_DEAD": True}},
+    "v8": {"_settings": {"USE_GOAL_DEAD": False}},
     "hybrid": {"_settings": {"LEARNED_TEAM_SETTINGS": config.V8_TEAM_SETTINGS}},
     "hybrid-metrica": {"_settings": {"LEARNED_TEAM_SETTINGS": dict(config.V8_TEAM_SETTINGS,
                                                                     LEARNED_USE_METRICA=True)}},
